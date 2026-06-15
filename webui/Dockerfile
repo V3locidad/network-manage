@@ -15,6 +15,10 @@ RUN pip install --no-cache-dir -r /tmp/requirements.txt
 RUN ansible-galaxy collection install -p /usr/share/ansible/collections \
       cisco.ios cisco.nxos arubanetworks.aoscx arubanetworks.aos_switch ansible.netcommon
 
+# Réactivation des algorithmes SSH legacy (switchs anciens) — auto-importé.
+COPY sitecustomize.py /opt/sshcompat/sitecustomize.py
+ENV PYTHONPATH=/opt/sshcompat
+
 COPY app.py /app/app.py
 COPY templates /app/templates
 WORKDIR /app
