@@ -13,20 +13,62 @@ import re
 import subprocess
 import threading
 import uuid
+from datetime import datetime
 from functools import wraps
 
 import yaml
 from flask import (Flask, Response, redirect, render_template, request,
                    session, url_for)
+from werkzeug.security import check_password_hash, generate_password_hash
 
 PROJECT_DIR = "/project"          # dépôt monté en lecture seule
 CREDS_FILE = "/secret/switch_creds.yml"   # ansible_user / ansible_password
+USERS_FILE = "/backups/users.json"        # comptes individuels (inscriptible)
 INVENTORY = os.path.join(PROJECT_DIR, "inventory/hosts.yml")
 
 APP_PASSWORD = os.environ.get("WEBUI_PASSWORD", "changeme")
 
+# Verrou pour les écritures concurrentes du fichier de comptes.
+_users_lock = threading.Lock()
+
+
+def load_users():
+    """Comptes {login: {hash, must_change}}. Vide => mode mot de passe partagé."""
+    try:
+        with open(USERS_FILE) as fh:
+            data = json.load(fh)
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    out = {}
+    for login, val in data.items():
+        # Tolère l'ancien format {login: "<hash>"}.
+        if isinstance(val, str):
+            out[login] = {"hash": val, "must_change": False}
+        elif isinstance(val, dict) and val.get("hash"):
+            out[login] = {"hash": val["hash"],
+                          "must_change": bool(val.get("must_change"))}
+    return out
+
+
+def save_users(users):
+    """Écrit le fichier de comptes (sous verrou)."""
+    with _users_lock:
+        try:
+            with open(USERS_FILE, "w") as fh:
+                json.dump(users, fh, ensure_ascii=False, indent=1)
+        except OSError:
+            pass
+
 app = Flask(__name__)
 app.secret_key = os.environ.get("WEBUI_SECRET", "dev-secret-change-me")
+
+
+@app.context_processor
+def inject_mode():
+    """Expose aux templates si le mode comptes individuels est actif."""
+    return {"accounts_mode": bool(load_users())}
 
 
 @app.after_request
@@ -114,6 +156,103 @@ ACTIONS = {
 
 FIRMWARE_IMAGES_DIR = os.path.join(PROJECT_DIR, "firmware", "images")
 FIRMWARE_STATUS_JSON = "/backups/firmware_status.json"
+BACKUP_DIR = "/backups"
+HISTORY_JSON = "/backups/history.json"
+HISTORY_MAX = 500   # on ne garde que les N dernières entrées
+
+# Verrou pour les écritures concurrentes du journal d'actions.
+_history_lock = threading.Lock()
+
+
+def load_history():
+    """Journal des actions, du plus récent au plus ancien."""
+    try:
+        with open(HISTORY_JSON) as fh:
+            data = json.load(fh)
+    except (OSError, ValueError):
+        data = []
+    return list(reversed(data))
+
+
+def log_history_start(run_id, who, ip, action, target, summary):
+    """Enregistre le lancement d'une action (statut « en cours »)."""
+    entry = {
+        "run_id": run_id,
+        "ts": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "who": who or "—",
+        "ip": ip or "",
+        "action": action,
+        "target": target,
+        "summary": summary,
+        "status": "en cours",
+        "rc": None,
+    }
+    with _history_lock:
+        try:
+            with open(HISTORY_JSON) as fh:
+                data = json.load(fh)
+        except (OSError, ValueError):
+            data = []
+        data.append(entry)
+        data = data[-HISTORY_MAX:]
+        try:
+            with open(HISTORY_JSON, "w") as fh:
+                json.dump(data, fh, ensure_ascii=False, indent=1)
+        except OSError:
+            pass
+
+
+def log_history_finish(run_id, rc):
+    """Met à jour l'entrée correspondante avec le résultat final."""
+    with _history_lock:
+        try:
+            with open(HISTORY_JSON) as fh:
+                data = json.load(fh)
+        except (OSError, ValueError):
+            return
+        for entry in reversed(data):
+            if entry.get("run_id") == run_id:
+                entry["rc"] = rc
+                entry["status"] = "OK" if rc == 0 else "échec"
+                break
+        try:
+            with open(HISTORY_JSON, "w") as fh:
+                json.dump(data, fh, ensure_ascii=False, indent=1)
+        except OSError:
+            pass
+
+
+def client_ip():
+    """IP réelle du client (derrière le reverse proxy Caddy)."""
+    fwd = request.headers.get("X-Forwarded-For", "")
+    if fwd:
+        return fwd.split(",")[0].strip()
+    return request.remote_addr or ""
+
+
+def action_summary(action, form):
+    """Résumé lisible des paramètres d'une action, pour le journal."""
+    f = form.get
+    dry = " (simulation)"
+    if action == "vlan":
+        s = "VLAN %s « %s » → %s" % (f("vlan_id", "?"), f("vlan_name", ""),
+                                     f("vlan_state", "present"))
+        return s + (dry if f("vlan_dry_run") else "")
+    if action == "port":
+        s = "port %s → %s" % (f("port_id", "?"), f("port_state", "disable"))
+        return s + (dry if f("port_dry_run") else "")
+    if action == "access":
+        s = "port %s → VLAN d'accès %s" % (f("access_port_id", "?"),
+                                           f("access_vlan_id", "?"))
+        return s + (dry if f("access_dry_run") else "")
+    if action == "firmware":
+        return "image %s" % f("firmware_image", "?")
+    if action == "stdconfig":
+        return "config standard" + (dry if f("baseline_dry_run") else "")
+    if action == "cmd":
+        cmds = [ln.strip() for ln in f("commands", "").splitlines() if ln.strip()]
+        return "; ".join(cmds)[:120]
+    return ""
 
 
 def swi_to_version(filename):
@@ -189,18 +328,78 @@ def login_required(fn):
 @app.route("/login", methods=["GET", "POST"])
 def login():
     error = None
+    users = load_users()
+    accounts = bool(users)   # True = comptes individuels, False = mot de passe partagé
     if request.method == "POST":
-        if request.form.get("password") == APP_PASSWORD:
-            session["auth"] = True
-            return redirect(url_for("index"))
-        error = "Mot de passe incorrect."
-    return render_template("login.html", error=error)
+        pwd = request.form.get("password", "")
+        if accounts:
+            # Authentification par compte : l'identité est vérifiée, infalsifiable.
+            login_name = (request.form.get("who") or "").strip()
+            u = users.get(login_name)
+            if u and check_password_hash(u["hash"], pwd):
+                session["auth"] = True
+                session["who"] = login_name
+                if u.get("must_change"):
+                    # Mot de passe par défaut -> changement obligatoire.
+                    session["force_change"] = True
+                    return redirect(url_for("change_password"))
+                return redirect(url_for("dashboard"))
+            error = "Identifiant ou mot de passe incorrect."
+        else:
+            # Rétro-compatibilité : mot de passe partagé + nom libre (non vérifié).
+            if pwd == APP_PASSWORD:
+                session["auth"] = True
+                session["who"] = (request.form.get("who") or "").strip()[:40]
+                return redirect(url_for("dashboard"))
+            error = "Mot de passe incorrect."
+    return render_template("login.html", error=error, accounts=accounts)
 
 
 @app.route("/logout")
 def logout():
     session.clear()
     return redirect(url_for("login"))
+
+
+@app.before_request
+def force_password_change():
+    """Tant que le mot de passe par défaut n'est pas changé, on bloque tout
+    sauf la page de changement, la déconnexion et les fichiers statiques."""
+    if session.get("auth") and session.get("force_change"):
+        if request.endpoint not in ("change_password", "logout", "static"):
+            return redirect(url_for("change_password"))
+
+
+@app.route("/change-password", methods=["GET", "POST"])
+@login_required
+def change_password():
+    error = None
+    forced = bool(session.get("force_change"))
+    if request.method == "POST":
+        users = load_users()
+        login_name = session.get("who")
+        u = users.get(login_name)
+        current = request.form.get("current", "")
+        new = request.form.get("new", "")
+        confirm = request.form.get("confirm", "")
+        if not u:
+            error = "Compte introuvable."
+        elif not forced and not check_password_hash(u["hash"], current):
+            error = "Mot de passe actuel incorrect."
+        elif len(new) < 8:
+            error = "Le nouveau mot de passe doit faire au moins 8 caractères."
+        elif new != confirm:
+            error = "La confirmation ne correspond pas."
+        elif check_password_hash(u["hash"], new):
+            error = "Le nouveau mot de passe doit être différent de l'ancien."
+        else:
+            u["hash"] = generate_password_hash(new)
+            u["must_change"] = False
+            users[login_name] = u
+            save_users(users)
+            session.pop("force_change", None)
+            return redirect(url_for("dashboard"))
+    return render_template("change_password.html", error=error, forced=forced)
 
 
 @app.route("/")
@@ -211,6 +410,73 @@ def index():
     hosts = [t for t in targets if t[0] not in ("procurve", "switches")]
     return render_template("index.html", actions=ACTIONS,
                            targets=targets, hosts=hosts, vlans=load_vlans())
+
+
+def _read_json(path, default):
+    try:
+        with open(path) as fh:
+            return json.load(fh)
+    except (OSError, ValueError):
+        return default
+
+
+def _last_backups():
+    """(date du dernier backup global, nb de switchs sauvegardés)."""
+    files = glob.glob(os.path.join(BACKUP_DIR, "*", "*.cfg"))
+    if not files:
+        return None, 0
+    hosts = {os.path.basename(os.path.dirname(p)) for p in files}
+    latest = max(os.path.getmtime(p) for p in files)
+    return datetime.fromtimestamp(latest).strftime("%Y-%m-%d %H:%M"), len(hosts)
+
+
+@app.route("/dashboard")
+@login_required
+def dashboard():
+    total = len(load_switch_hosts())
+
+    # --- Firmware (dernier scan) ---
+    images = [os.path.basename(p)
+              for p in glob.glob(os.path.join(FIRMWARE_IMAGES_DIR, "*.swi"))]
+    target = max((swi_to_version(i) for i in images), default=None)
+    fw = _read_json(FIRMWARE_STATUS_JSON, [])
+    fw_ok = fw_old = fw_unknown = 0
+    for d in fw:
+        cur = (d.get("version") or "?").strip()
+        if not target or cur in ("", "?"):
+            fw_unknown += 1
+        elif cur == target:
+            fw_ok += 1
+        else:
+            fw_old += 1
+
+    # --- Conformité (dernier audit) ---
+    audit = _read_json("/backups/audit.json", [])
+    checks = ["ntp", "logging", "snmp_overall", "web_mgmt", "authmgr", "portsec"]
+    conf_ok = 0
+    for d in audit:
+        d["snmp_overall"] = bool(d.get("snmp")) and bool(d.get("snmp_public"))
+        if all(d.get(c) for c in checks):
+            conf_ok += 1
+
+    last_backup, n_backed = _last_backups()
+
+    return render_template(
+        "dashboard.html",
+        total=total,
+        fw_ok=fw_ok, fw_old=fw_old, fw_unknown=fw_unknown,
+        fw_scanned=bool(fw), fw_target=target,
+        conf_ok=conf_ok, conf_total=len(audit), conf_scanned=bool(audit),
+        last_backup=last_backup, n_backed=n_backed,
+        history=load_history()[:8],
+    )
+
+
+@app.route("/history")
+@login_required
+def history():
+    return render_template("history.html", history=load_history(),
+                           accounts=bool(load_users()))
 
 
 @app.route("/firmware")
@@ -365,8 +631,10 @@ def run_job(run_id, cmd):
             q.put(ANSI_RE.sub("", line).replace("\r", ""))
         proc.wait()
         q.put(f"\n=== Terminé (code {proc.returncode}) ===\n")
+        log_history_finish(run_id, proc.returncode)
     except Exception as exc:  # noqa: BLE001
         q.put(f"\n[ERREUR lancement] {exc}\n")
+        log_history_finish(run_id, -1)
     RUNS[run_id]["done"] = True
     q.put(None)  # sentinelle de fin
 
@@ -379,6 +647,12 @@ def run(action):
     run_id = uuid.uuid4().hex
     RUNS[run_id] = {"q": queue.Queue(), "done": False}
     cmd = build_command(action, request.form)
+    # Journalise l'action (sauf la collecte silencieuse des VLANs pour le menu).
+    if action != "vlan_list":
+        log_history_start(run_id, session.get("who"), client_ip(),
+                          ACTIONS[action]["label"],
+                          request.form.get("target", "procurve"),
+                          action_summary(action, request.form))
     threading.Thread(target=run_job, args=(run_id, cmd), daemon=True).start()
     # Après une collecte (versions / VLANs), on revient automatiquement à la page.
     if action == "firmware_status":

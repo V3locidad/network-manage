@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 style="margin:0 0 18px;">Tableau de bord</h2>
+
+<div class="tiles">
+  <a class="tile" href="{{ url_for('terminal') }}">
+    <div class="big">{{ total }}</div>
+    <div class="lbl">switchs dans l'inventaire</div>
+  </a>
+
+  <a class="tile" href="{{ url_for('firmware_dashboard') }}">
+    {% if fw_scanned %}
+      <div class="big">{{ fw_ok }}<span class="muted" style="font-size:18px;">/{{ fw_ok + fw_old + fw_unknown }}</span></div>
+      <div class="lbl">firmware à jour</div>
+      <div class="sub">
+        {% if fw_old %}<span class="bad">{{ fw_old }} obsolète(s)</span>{% endif %}
+        {% if fw_old and fw_unknown %} · {% endif %}
+        {% if fw_unknown %}<span class="muted">{{ fw_unknown }} inconnu(s)</span>{% endif %}
+        {% if not fw_old and not fw_unknown %}<span class="ok">tout est à jour</span>{% endif %}
+      </div>
+    {% else %}
+      <div class="big muted">—</div>
+      <div class="lbl">firmware</div>
+      <div class="sub muted">jamais scanné</div>
+    {% endif %}
+  </a>
+
+  <a class="tile" href="{{ url_for('audit_dashboard') }}">
+    {% if conf_scanned %}
+      <div class="big">{{ conf_ok }}<span class="muted" style="font-size:18px;">/{{ conf_total }}</span></div>
+      <div class="lbl">switchs conformes</div>
+      <div class="sub">
+        {% if conf_total - conf_ok > 0 %}<span class="bad">{{ conf_total - conf_ok }} avec écarts</span>
+        {% else %}<span class="ok">parc conforme</span>{% endif %}
+      </div>
+    {% else %}
+      <div class="big muted">—</div>
+      <div class="lbl">conformité</div>
+      <div class="sub muted">jamais audité</div>
+    {% endif %}
+  </a>
+
+  <a class="tile" href="{{ url_for('index') }}">
+    {% if last_backup %}
+      <div class="big" style="font-size:20px;">{{ last_backup }}</div>
+      <div class="lbl">dernière sauvegarde</div>
+      <div class="sub muted">{{ n_backed }} switch(s) sauvegardé(s)</div>
+    {% else %}
+      <div class="big muted">—</div>
+      <div class="lbl">dernière sauvegarde</div>
+      <div class="sub muted">aucune sauvegarde</div>
+    {% endif %}
+  </a>
+</div>
+
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center;">
+    <h2 style="margin:0;">Activité récente</h2>
+    <a href="{{ url_for('history') }}" style="color:#60a5fa;text-decoration:none;font-size:13px;">Tout voir →</a>
+  </div>
+  {% if history %}
+    <table style="margin-top:12px;">
+      <tr><th>Date</th><th>Qui</th><th>Action</th><th>Cible</th><th>État</th></tr>
+      {% for h in history %}
+      <tr>
+        <td class="muted">{{ h.ts }}</td>
+        <td>{{ h.who }}</td>
+        <td>{{ h.action }}{% if h.summary %} <span class="muted">— {{ h.summary }}</span>{% endif %}</td>
+        <td>{{ h.target }}</td>
+        <td>
+          {% if h.status == 'OK' %}<span class="badge b-ok">OK</span>
+          {% elif h.status == 'en cours' %}<span class="badge b-run">en cours</span>
+          {% else %}<span class="badge b-bad">échec</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+  {% else %}
+    <p class="muted" style="margin-top:12px;">Aucune action enregistrée pour l'instant.</p>
+  {% endif %}
+</div>
+
+<p class="muted" style="font-size:12px;margin-top:16px;">
+  Les chiffres firmware et conformité reflètent le <b>dernier scan</b>.
+  Relance-les depuis les pages « État firmware » et « Conformité » pour les rafraîchir.
+</p>
+{% endblock %}

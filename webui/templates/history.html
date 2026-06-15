@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 style="margin:0 0 6px;">Historique des actions</h2>
+<p class="muted" style="margin:0 0 18px;font-size:13px;">
+  Qui a lancé quoi, quand, et avec quel résultat. {{ history|length }} entrée(s).
+  {% if accounts %}
+    <span class="ok">· identités vérifiées (comptes individuels)</span>
+  {% else %}
+    <span class="warn">· noms non vérifiés (mot de passe partagé) — créez des comptes pour une vraie imputabilité</span>
+  {% endif %}
+</p>
+
+<div class="card">
+  {% if history %}
+    <table>
+      <tr>
+        <th>Date</th><th>Qui</th><th>IP</th><th>Action</th>
+        <th>Détail</th><th>Cible</th><th>État</th>
+      </tr>
+      {% for h in history %}
+      <tr>
+        <td class="muted" style="white-space:nowrap;">{{ h.ts }}</td>
+        <td>{{ h.who }}</td>
+        <td class="muted">{{ h.ip }}</td>
+        <td>{{ h.action }}</td>
+        <td class="muted">{{ h.summary }}</td>
+        <td>{{ h.target }}</td>
+        <td>
+          {% if h.status == 'OK' %}<span class="badge b-ok">OK</span>
+          {% elif h.status == 'en cours' %}<span class="badge b-run">en cours</span>
+          {% else %}<span class="badge b-bad">échec{% if h.rc not in (None, -1) %} ({{ h.rc }}){% endif %}</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+  {% else %}
+    <p class="muted">Aucune action enregistrée pour l'instant.</p>
+  {% endif %}
+</div>
+{% endblock %}

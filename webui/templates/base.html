@@ -34,18 +34,40 @@
     .check { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
     .check input { width: auto; }
     .warn { color: #fbbf24; font-size: 12px; }
+    .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr));
+             gap: 16px; margin-bottom: 24px; }
+    .tile { background: #1e293b; border: 1px solid #334155; border-radius: 12px;
+            padding: 18px 20px; text-decoration: none; color: inherit; display: block; }
+    .tile:hover { border-color: #475569; }
+    .tile .big { font-size: 30px; font-weight: 700; line-height: 1.1; }
+    .tile .lbl { color: #94a3b8; font-size: 13px; margin-top: 4px; }
+    .tile .sub { font-size: 12px; margin-top: 8px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #1e293b; }
+    th { color: #94a3b8; font-weight: 600; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 999px;
+             font-size: 11.5px; font-weight: 600; }
+    .b-ok { background: #064e3b; color: #6ee7b7; }
+    .b-bad { background: #4c1d1d; color: #fca5a5; }
+    .b-run { background: #1e3a5f; color: #93c5fd; }
+    .b-muted { background: #334155; color: #cbd5e1; }
+    .ok { color: #6ee7b7; } .bad { color: #fca5a5; } .muted { color: #64748b; }
   </style>
 </head>
 <body>
   <header>
     <h1>Gestion des switchs</h1>
     {% if session.get('auth') %}
-      <nav style="display:flex;gap:18px;align-items:center;">
+      <nav style="display:flex;gap:18px;align-items:center;flex-wrap:wrap;">
+        <a href="{{ url_for('dashboard') }}">Tableau de bord</a>
         <a href="{{ url_for('index') }}">Actions</a>
         <a href="{{ url_for('console_result') }}">Console</a>
         <a href="{{ url_for('terminal') }}">Terminal</a>
         <a href="{{ url_for('audit_dashboard') }}">Conformité</a>
         <a href="{{ url_for('firmware_dashboard') }}">État firmware</a>
+        <a href="{{ url_for('history') }}">Historique</a>
+        {% if session.get('who') %}<span style="color:#64748b;font-size:13px;">👤 {{ session.get('who') }}</span>{% endif %}
+        {% if accounts_mode %}<a href="{{ url_for('change_password') }}">Mot de passe</a>{% endif %}
         <a href="{{ url_for('logout') }}">Déconnexion</a>
       </nav>
     {% endif %}
