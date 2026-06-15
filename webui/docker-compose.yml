@@ -18,6 +18,10 @@ services:
     environment:
       WEBUI_PASSWORD: ${WEBUI_PASSWORD}
       WEBUI_SECRET: ${WEBUI_SECRET}
+      # Déchiffrement à la volée de switch_creds.yml (Ansible Vault).
+      # Inoffensif tant que le fichier n'est pas chiffré.
+      ANSIBLE_VAULT_PASSWORD: ${ANSIBLE_VAULT_PASSWORD:-}
+      ANSIBLE_VAULT_PASSWORD_FILE: /project/secret/vault_pass.sh
     volumes:
       # Le projet Ansible (lecture seule) + les sauvegardes (écriture).
       - /opt/net-automation:/project:ro

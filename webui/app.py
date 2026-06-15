@@ -276,10 +276,21 @@ def load_switch_hosts():
 
 
 def switch_creds():
-    """(login, mot de passe) des switchs, pour pré-remplir le terminal."""
+    """(login, mot de passe) des switchs, pour pré-remplir le terminal.
+
+    Gère le cas où switch_creds.yml est chiffré avec Ansible Vault : on le
+    déchiffre via `ansible-vault view` (le mot de passe vient de l'env)."""
     try:
         with open(CREDS_FILE) as fh:
-            d = yaml.safe_load(fh) or {}
+            head = fh.readline()
+            if head.startswith("$ANSIBLE_VAULT"):
+                out = subprocess.run(
+                    ["ansible-vault", "view", CREDS_FILE],
+                    cwd=PROJECT_DIR, capture_output=True, text=True)
+                d = yaml.safe_load(out.stdout) or {}
+            else:
+                fh.seek(0)
+                d = yaml.safe_load(fh) or {}
         return d.get("ansible_user", ""), d.get("ansible_password", "")
     except Exception:
         return "", ""
