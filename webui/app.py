@@ -375,6 +375,17 @@ def logout():
     return redirect(url_for("login"))
 
 
+@app.route("/_authcheck", methods=["GET", "POST", "HEAD", "OPTIONS",
+                                   "PUT", "DELETE", "PATCH"])
+def authcheck():
+    """Sonde d'authentification pour le reverse proxy (forward_auth).
+    200 si l'utilisateur est connecté à la webui, 401 sinon. Permet de
+    protéger le terminal WebSSH (:8443) avec le MÊME login que l'interface."""
+    if session.get("auth"):
+        return ("", 200)
+    return ("non authentifié", 401)
+
+
 @app.before_request
 def force_password_change():
     """Tant que le mot de passe par défaut n'est pas changé, on bloque tout

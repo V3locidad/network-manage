@@ -12,11 +12,12 @@
 	reverse_proxy webui:8080
 }
 
-# Terminal WebSSH (HTTPS + authentification basique, il n'en a pas).
+# Terminal WebSSH (HTTPS). Protégé par le MÊME login que l'interface :
+# Caddy interroge la webui (/_authcheck) ; accès refusé si pas connecté.
 :8443 {
 	tls /certs/cert.pem /certs/key.pem
-	basic_auth {
-		admin {$WEBSSH_HASH}
+	forward_auth webui:8080 {
+		uri /_authcheck
 	}
 	reverse_proxy webssh:8888
 }

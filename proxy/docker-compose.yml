@@ -10,8 +10,6 @@ services:
     ports:
       - "443:443"     # interface web
       - "8443:8443"   # terminal WebSSH (auth basique)
-    environment:
-      WEBSSH_HASH: ${WEBSSH_HASH}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./certs:/certs:ro

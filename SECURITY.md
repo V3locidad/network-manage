@@ -38,21 +38,19 @@ cd /opt/net-automation/webui  && docker compose up -d --build
 cd /opt/net-automation/webssh && docker compose up -d --build
 ```
 
-### 4. Configurer + lancer Caddy
+### 4. Lancer Caddy
 ```bash
 cd /opt/net-automation/proxy
-cp .env.example .env
-# Génère le hash du mot de passe d'accès au terminal :
-docker run --rm caddy caddy hash-password --plaintext 'TON_MDP_TERMINAL'
-# Colle la valeur dans .env (WEBSSH_HASH=...), en DOUBLANT les $ -> $$
-nano .env
 docker compose up -d
 ```
+Le terminal WebSSH (`:8443`) est protégé par le **même login que l'interface**
+(SSO via `forward_auth` : Caddy interroge la webui). Aucun mot de passe terminal
+distinct à configurer.
 
 ### 5. Tester l'accès AVANT le pare-feu
 - Interface : `https://10.0.0.50` (accepte l'avertissement de certificat auto-signé)
-- Terminal : depuis l'interface → onglet **Terminal** → **Ouvrir** (Caddy demande
-  l'identifiant `admin` + le mot de passe du terminal, puis WebSSH s'ouvre).
+- Terminal : depuis l'interface → onglet **Terminal** → **Ouvrir** (accessible
+  directement car tu es déjà connecté à l'interface ; WebSSH s'ouvre).
 
 ### 6. Pare-feu (en dernier, une fois l'accès confirmé)
 ```bash

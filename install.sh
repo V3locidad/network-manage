@@ -175,15 +175,8 @@ echo; say "HTTPS / reverse proxy"
 ask "IP(s) par lesquelles tu accèderas à l'interface" "$DETECTED_IPS"; TLS_IPS="$REPLY_VAL"
 bash proxy/gencert.sh $TLS_IPS >/dev/null
 ok "Certificat TLS généré (proxy/certs/)"
-
-# L'identifiant du terminal est figé à « admin » dans le Caddyfile.
-TERM_USER="admin"
-ask_secret "Mot de passe du terminal web (utilisateur: admin)"; TERM_PASS="$REPLY_VAL"
-TERM_HASH="$(docker run --rm caddy:2 caddy hash-password --plaintext "$TERM_PASS")"
-TERM_HASH_ESC="${TERM_HASH//$/$$}"      # doubler les $ pour docker-compose
-[ -f proxy/.env ] || cp proxy/.env.example proxy/.env
-set_kv proxy/.env WEBSSH_HASH "$TERM_HASH_ESC"
-ok "Accès terminal configuré (user: ${TERM_USER})"
+# Le terminal WebSSH est protégé par le même login que l'interface (SSO via
+# forward_auth) : aucun mot de passe supplémentaire à définir.
 
 # ---------------------------------------------------------------------------
 # 8. Construction des images
@@ -272,7 +265,7 @@ echo -e "${c_grn}│              Installation terminée           │${c_off}"
 echo -e "${c_grn}└──────────────────────────────────────────────┘${c_off}"
 echo
 echo "  Interface web :  https://${ACCESS_IP}     (compte : ${ADM_LOGIN})"
-echo "  Terminal web  :  https://${ACCESS_IP}:8443  (user : ${TERM_USER})"
+echo "  Terminal web  :  https://${ACCESS_IP}:8443  (même login que l'interface)"
 echo
 echo "  Le certificat est auto-signé : accepte l'avertissement du navigateur."
 [ "$USE_LNMS" = yes ] || echo "  ➜ Complète tes switchs dans : ${INSTALL_DIR}/inventory/hosts.yml"
