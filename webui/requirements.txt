@@ -1,3 +1,6 @@
 flask>=3.0
 ansible-core>=2.16
-paramiko>=3.0
+# paramiko 4.x/5.x a SUPPRIMÉ les algorithmes SSH SHA1 (diffie-hellman-group14-sha1,
+# ssh-rsa…) dont les vieux switchs Aruba/HP/Cisco ont besoin. On reste en 3.5.x,
+# qui les fournit encore (réactivés par sitecustomize.py).
+paramiko>=3.5,<4.0
