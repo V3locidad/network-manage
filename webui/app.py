@@ -345,11 +345,14 @@ def login():
         pwd = request.form.get("password", "")
         if accounts:
             # Authentification par compte : l'identité est vérifiée, infalsifiable.
-            login_name = (request.form.get("who") or "").strip()
-            u = users.get(login_name)
+            typed = (request.form.get("who") or "").strip()
+            # Identifiant insensible à la casse : on retrouve l'orthographe
+            # canonique du compte pour toujours journaliser la même valeur.
+            canonical = next((k for k in users if k.lower() == typed.lower()), None)
+            u = users.get(canonical) if canonical else None
             if u and check_password_hash(u["hash"], pwd):
                 session["auth"] = True
-                session["who"] = login_name
+                session["who"] = canonical
                 if u.get("must_change"):
                     # Mot de passe par défaut -> changement obligatoire.
                     session["force_change"] = True
