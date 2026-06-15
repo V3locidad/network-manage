@@ -16,8 +16,19 @@
 # Caddy interroge la webui (/_authcheck) ; accès refusé si pas connecté.
 :8443 {
 	tls /certs/cert.pem /certs/key.pem
-	forward_auth webui:8080 {
-		uri /_authcheck
+
+	# Flux WebSocket du terminal : PAS de forward_auth (il casserait l'upgrade
+	# WebSocket). C'est sans risque : /ws exige un id de session valide, créé
+	# uniquement par le POST de connexion qui, lui, est authentifié ci-dessous.
+	handle /ws {
+		reverse_proxy webssh:8888
 	}
-	reverse_proxy webssh:8888
+
+	# Page + POST de connexion : protégés par le login de l'interface.
+	handle {
+		forward_auth webui:8080 {
+			uri /_authcheck
+		}
+		reverse_proxy webssh:8888
+	}
 }
