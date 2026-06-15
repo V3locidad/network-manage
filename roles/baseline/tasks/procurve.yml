@@ -26,52 +26,65 @@
   ansible.builtin.set_fact:
     protected_ports: "{{ bl_ports_list | default([]) | select | join(',') }}"
 
+# ---- Construire les listes de commandes selon les options activées ---------
+- name: "Construire les commandes de services"
+  ansible.builtin.set_fact:
+    bl_service_cmds: >-
+      {{ ['configure terminal']
+         + (['timesync ntp', 'ntp unicast', 'ntp server ' ~ ntp_server, 'ntp enable']
+            if (baseline_ntp | bool) and ntp_server else [])
+         + (['logging ' ~ logging_server]
+            if (baseline_logging | bool) and logging_server else [])
+         + (['snmp-server community "' ~ snmp_community ~ '" restricted',
+             'snmp-server contact "' ~ snmp_contact ~ '" location "' ~ snmp_location ~ '"']
+            if (baseline_snmp | bool) and snmp_community else [])
+         + (['no web-management', 'no web-management plaintext']
+            if (baseline_web_mgmt_off | bool) else [])
+         + (['ip authorized-managers ' ~ authorized_manager ~ ' access manager']
+            if (baseline_authmgr | bool) and authorized_manager else [])
+         + ['end'] }}
+
+- name: "Construire les commandes de sécurité des ports"
+  ansible.builtin.set_fact:
+    bl_port_cmds: >-
+      {{ ['configure terminal']
+         + (['spanning-tree ' ~ protected_ports ~ ' admin-edge-port',
+             'spanning-tree ' ~ protected_ports ~ ' bpdu-protection']
+            if (baseline_spanning_tree | bool) else [])
+         + (['loop-protect ' ~ protected_ports,
+             'loop-protect trap loop-detected',
+             'loop-protect disable-timer ' ~ loop_protect_disable_timer]
+            if (baseline_loop_protect | bool) else [])
+         + ['end'] }}
+
 # ---- SIMULATION -----------------------------------------------------------
 - name: "SIMULATION — ce qui serait appliqué (rien n'est écrit)"
   ansible.builtin.debug:
     msg: >-
-      [DRY-RUN] {{ inventory_hostname }} — Services : NTP={{ ntp_server }},
-      Logging={{ logging_server }}, SNMP communauté="{{ snmp_community }}",
-      web-management OFF, authorized-managers="{{ authorized_manager }}".
-      Ports d'accès protégés (admin-edge + bpdu-protection + loop-protect) :
-      {{ protected_ports if protected_ports else 'aucun détecté' }}.
+      [DRY-RUN] {{ inventory_hostname }} — Services : {{ bl_service_cmds[1:-1] | join(' ; ') | default('aucun', true) }}.
+      Ports d'accès protégés ({{ protected_ports if protected_ports else 'aucun détecté' }}) :
+      {{ bl_port_cmds[1:-1] | join(' ; ') | default('aucune protection', true) }}.
   when: baseline_dry_run | bool
 
 # ---- RÉEL : services ------------------------------------------------------
 - name: "Appliquer la configuration standard (services)"
   ansible.netcommon.cli_command:
     command: "{{ item }}"
-  loop:
-    - configure terminal
-    - timesync ntp
-    - ntp unicast
-    - "ntp server {{ ntp_server }}"
-    - ntp enable
-    - "logging {{ logging_server }}"
-    - 'snmp-server community "{{ snmp_community }}" restricted'
-    - 'snmp-server contact "{{ snmp_contact }}" location "{{ snmp_location }}"'
-    - no web-management
-    - no web-management plaintext
-    - "ip authorized-managers {{ authorized_manager }} access manager"
-    - end
+  loop: "{{ bl_service_cmds }}"
   failed_when: false      # tolère les réglages déjà présents (idempotence)
-  when: not (baseline_dry_run | bool)
+  when:
+    - not (baseline_dry_run | bool)
+    - bl_service_cmds | length > 2     # plus que 'configure terminal' + 'end'
 
 # ---- RÉEL : sécurité des ports d'accès ------------------------------------
 - name: "Appliquer la sécurité des ports d'accès"
   ansible.netcommon.cli_command:
     command: "{{ item }}"
-  loop:
-    - configure terminal
-    - "spanning-tree {{ protected_ports }} admin-edge-port"
-    - "spanning-tree {{ protected_ports }} bpdu-protection"
-    - "loop-protect {{ protected_ports }}"
-    - loop-protect trap loop-detected
-    - "loop-protect disable-timer {{ loop_protect_disable_timer }}"
-    - end
+  loop: "{{ bl_port_cmds }}"
   when:
     - not (baseline_dry_run | bool)
     - protected_ports | length > 0
+    - bl_port_cmds | length > 2
 
 - name: "Sauvegarde de la config (write memory)"
   ansible.netcommon.cli_command:

@@ -160,6 +160,51 @@ BACKUP_DIR = "/backups"
 HISTORY_JSON = "/backups/history.json"
 HISTORY_MAX = 500   # on ne garde que les N dernières entrées
 
+# Réglages de la « config standard » (role baseline), éditables dans l'UI.
+SITE_YML = os.path.join(PROJECT_DIR, "inventory/group_vars/all/site.yml")
+BASELINE_JSON = "/backups/baseline.json"
+BASELINE_DEFAULTS = {
+    "ntp_server": "", "logging_server": "",
+    "snmp_community": "", "snmp_contact": "", "snmp_location": "",
+    "authorized_manager": "", "protected_vlans": [],
+    "loop_protect_disable_timer": 300,
+    # Interrupteurs : appliquer ou non chaque bloc.
+    "baseline_ntp": True, "baseline_logging": True, "baseline_snmp": True,
+    "baseline_web_mgmt_off": True, "baseline_authmgr": True,
+    "baseline_spanning_tree": True, "baseline_loop_protect": True,
+}
+_baseline_lock = threading.Lock()
+
+
+def load_baseline():
+    """Réglages baseline : défauts < site.yml (si présent) < baseline.json (UI)."""
+    data = dict(BASELINE_DEFAULTS)
+    try:
+        with open(SITE_YML) as fh:
+            sy = yaml.safe_load(fh) or {}
+        for k in ("ntp_server", "logging_server", "snmp_community",
+                  "snmp_contact", "snmp_location", "authorized_manager",
+                  "protected_vlans", "loop_protect_disable_timer"):
+            if k in sy and sy[k] not in (None, ""):
+                data[k] = sy[k]
+    except (OSError, ValueError):
+        pass
+    try:
+        with open(BASELINE_JSON) as fh:
+            data.update(json.load(fh))
+    except (OSError, ValueError):
+        pass
+    return data
+
+
+def save_baseline(data):
+    with _baseline_lock:
+        try:
+            with open(BASELINE_JSON, "w") as fh:
+                json.dump(data, fh, ensure_ascii=False, indent=1)
+        except OSError:
+            pass
+
 # Verrou pour les écritures concurrentes du journal d'actions.
 _history_lock = threading.Lock()
 
@@ -504,6 +549,40 @@ def history():
                            accounts=bool(load_users()))
 
 
+BASELINE_TOGGLES = ("baseline_ntp", "baseline_logging", "baseline_snmp",
+                    "baseline_web_mgmt_off", "baseline_authmgr",
+                    "baseline_spanning_tree", "baseline_loop_protect")
+BASELINE_TEXT = ("ntp_server", "logging_server", "snmp_community",
+                 "snmp_contact", "snmp_location", "authorized_manager")
+
+
+@app.route("/settings", methods=["GET", "POST"])
+@login_required
+def settings():
+    saved = False
+    if request.method == "POST":
+        data = {k: request.form.get(k, "").strip() for k in BASELINE_TEXT}
+        # VLAN protégés : liste d'entiers depuis une saisie « 10, 20, 61 ».
+        vlans = []
+        for tok in re.split(r"[,\s]+", request.form.get("protected_vlans", "")):
+            if tok.isdigit():
+                vlans.append(int(tok))
+        data["protected_vlans"] = vlans
+        try:
+            data["loop_protect_disable_timer"] = int(
+                request.form.get("loop_protect_disable_timer", "300"))
+        except ValueError:
+            data["loop_protect_disable_timer"] = 300
+        # Cases cochées = présentes dans le formulaire.
+        for t in BASELINE_TOGGLES:
+            data[t] = bool(request.form.get(t))
+        save_baseline(data)
+        saved = True
+    cfg = load_baseline()
+    cfg["protected_vlans_str"] = ", ".join(str(v) for v in cfg.get("protected_vlans", []))
+    return render_template("settings.html", cfg=cfg, saved=saved)
+
+
 @app.route("/firmware")
 @login_required
 def firmware_dashboard():
@@ -618,9 +697,9 @@ def build_command(action, form):
             "firmware_tftp_server": os.environ.get("TFTP_SERVER", ""),
         })
     if action == "stdconfig":
-        extra.update({
-            "baseline_dry_run": bool(form.get("baseline_dry_run")),
-        })
+        # Réglages éditables dans la page « Config standard » (baseline.json).
+        extra.update(load_baseline())
+        extra["baseline_dry_run"] = bool(form.get("baseline_dry_run"))
     if action == "access":
         extra.update({
             "access_vlan_id": form.get("access_vlan_id", ""),

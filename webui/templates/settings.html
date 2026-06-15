@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 style="margin:0 0 6px;">Config standard</h2>
+<p class="muted" style="margin:0 0 18px;font-size:13px;">
+  Réglages appliqués par l'action « Config standard ». Modifie-les ici, puis
+  lance l'action depuis la page <a href="{{ url_for('index') }}" style="color:#60a5fa;">Actions</a>.
+</p>
+{% if saved %}<p style="color:#6ee7b7;">✅ Réglages enregistrés.</p>{% endif %}
+
+<form method="post">
+  <div class="grid">
+
+    <div class="card">
+      <h2>Services</h2>
+      <label class="check"><input type="checkbox" name="baseline_ntp" {% if cfg.baseline_ntp %}checked{% endif %}> NTP</label>
+      <label>Serveur NTP</label>
+      <input type="text" name="ntp_server" value="{{ cfg.ntp_server }}" placeholder="10.0.0.155">
+
+      <label class="check"><input type="checkbox" name="baseline_logging" {% if cfg.baseline_logging %}checked{% endif %}> Logging (syslog)</label>
+      <label>Serveur de logs</label>
+      <input type="text" name="logging_server" value="{{ cfg.logging_server }}" placeholder="10.0.0.251">
+
+      <label class="check"><input type="checkbox" name="baseline_web_mgmt_off" {% if cfg.baseline_web_mgmt_off %}checked{% endif %}> Désactiver web-management</label>
+    </div>
+
+    <div class="card">
+      <h2>SNMP</h2>
+      <label class="check"><input type="checkbox" name="baseline_snmp" {% if cfg.baseline_snmp %}checked{% endif %}> Configurer SNMP</label>
+      <label>Communauté</label>
+      <input type="text" name="snmp_community" value="{{ cfg.snmp_community }}" placeholder="public">
+      <label>Contact</label>
+      <input type="text" name="snmp_contact" value="{{ cfg.snmp_contact }}" placeholder="admin@example.com">
+      <label>Localisation</label>
+      <input type="text" name="snmp_location" value="{{ cfg.snmp_location }}" placeholder="Bâtiment A">
+    </div>
+
+    <div class="card">
+      <h2>Accès / management</h2>
+      <label class="check"><input type="checkbox" name="baseline_authmgr" {% if cfg.baseline_authmgr %}checked{% endif %}> Restreindre les managers autorisés</label>
+      <label>ip authorized-managers</label>
+      <input type="text" name="authorized_manager" value="{{ cfg.authorized_manager }}" placeholder="10.0.0.0 255.255.255.0">
+      <p class="warn">Le masque doit couvrir le réseau de gestion, sinon le serveur perd l'accès aux switchs.</p>
+    </div>
+
+    <div class="card">
+      <h2>Sécurité des ports d'accès</h2>
+      <label>VLAN protégés <span class="muted">(séparés par des virgules)</span></label>
+      <input type="text" name="protected_vlans" value="{{ cfg.protected_vlans_str }}" placeholder="10, 20, 61">
+      <p class="muted" style="font-size:12px;">Les ports <i>untagged</i> de ces VLAN reçoivent la protection ci-dessous.</p>
+
+      <label class="check"><input type="checkbox" name="baseline_spanning_tree" {% if cfg.baseline_spanning_tree %}checked{% endif %}> Spanning-tree (admin-edge + bpdu-protection)</label>
+      <label class="check"><input type="checkbox" name="baseline_loop_protect" {% if cfg.baseline_loop_protect %}checked{% endif %}> Loop-protect</label>
+      <label>Loop-protect : délai de réactivation (s) <span class="muted">— 0 = jamais</span></label>
+      <input type="number" name="loop_protect_disable_timer" value="{{ cfg.loop_protect_disable_timer }}" min="0">
+    </div>
+
+  </div>
+  <button type="submit" style="max-width:240px;">Enregistrer les réglages</button>
+</form>
+{% endblock %}

@@ -16,3 +16,13 @@ loop_protect_disable_timer: 300
 
 baseline_dry_run: true        # simulation par défaut
 baseline_save: true           # write memory après application
+
+# Interrupteurs (appliquer ou non chaque bloc) — pilotés par la page « Config
+# standard » de l'interface. Par défaut tout est appliqué (comportement inchangé).
+baseline_ntp: true
+baseline_logging: true
+baseline_snmp: true
+baseline_web_mgmt_off: true
+baseline_authmgr: true
+baseline_spanning_tree: true
+baseline_loop_protect: true
