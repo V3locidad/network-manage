@@ -55,6 +55,36 @@ set_kv() {
   mv "${f}.tmp" "$f"
 }
 
+configure_vfs() {
+  # vfs n'utilise aucun mount overlay -> contourne le refus overlayfs en LXC.
+  mkdir -p /etc/docker
+  cat > /etc/docker/daemon.json <<'JSON'
+{
+  "storage-driver": "vfs",
+  "features": { "containerd-snapshotter": false }
+}
+JSON
+  systemctl restart docker
+  sleep 4
+}
+
+preflight_containers() {
+  # Vérifie que Docker peut RÉELLEMENT lancer un conteneur dans ce LXC.
+  say "Vérification du support des conteneurs (LXC)"
+  if docker run --rm hello-world >/dev/null 2>&1; then ok "Conteneurs OK"; return; fi
+  warn "Échec au premier essai — bascule du stockage Docker en 'vfs'…"
+  configure_vfs
+  if docker run --rm hello-world >/dev/null 2>&1; then ok "Conteneurs OK (stockage vfs)"; return; fi
+  err "Docker ne peut pas démarrer de conteneur dans ce LXC."
+  echo
+  echo "   Cause : le conteneur LXC n'a pas 'nesting' activé (montage /proc refusé)."
+  echo "   Sur l'HÔTE Proxmox, exécute :"
+  echo "       pct set <CTID> --features nesting=1,keyctl=1"
+  echo "       pct reboot <CTID>"
+  echo "   puis relance ce script."
+  exit 1
+}
+
 [ "$(id -u)" -eq 0 ] || { err "Lance ce script en root."; exit 1; }
 
 echo
@@ -81,6 +111,9 @@ else
   ok "Docker déjà présent"
 fi
 docker compose version >/dev/null 2>&1 || { err "Le plugin 'docker compose' manque."; exit 1; }
+
+# Vérifie tout de suite que les conteneurs démarrent (sinon inutile d'aller plus loin).
+preflight_containers
 
 # ---------------------------------------------------------------------------
 # 2. Récupération du code
@@ -187,21 +220,7 @@ ok "Certificat TLS généré (proxy/certs/)"
 # 8. Construction des images
 # ---------------------------------------------------------------------------
 echo; say "Construction des images Docker (peut prendre quelques minutes)"
-if ! docker compose -f webui/docker-compose.yml build >/dev/null 2>&1; then
-  warn "Build impossible (overlayfs refusé — LXC). Bascule de Docker en stockage 'vfs'…"
-  mkdir -p /etc/docker
-  # vfs n'utilise aucun mount overlay -> fonctionne même en LXC non privilégié.
-  cat > /etc/docker/daemon.json <<'JSON'
-{
-  "storage-driver": "vfs",
-  "features": { "containerd-snapshotter": false }
-}
-JSON
-  systemctl restart docker
-  sleep 4
-  docker network inspect netauto >/dev/null 2>&1 || docker network create netauto >/dev/null
-  docker compose -f webui/docker-compose.yml build
-fi
+docker compose -f webui/docker-compose.yml build
 ok "Image webui construite"
 
 # Inventaire LibreNMS (nécessite l'image webui pour python + accès réseau)
