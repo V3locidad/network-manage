@@ -187,7 +187,21 @@ ok "Certificat TLS généré (proxy/certs/)"
 # 8. Construction des images
 # ---------------------------------------------------------------------------
 echo; say "Construction des images Docker (peut prendre quelques minutes)"
-docker compose -f webui/docker-compose.yml build >/dev/null
+if ! docker compose -f webui/docker-compose.yml build >/dev/null 2>&1; then
+  warn "Build impossible (overlayfs refusé — LXC). Bascule de Docker en stockage 'vfs'…"
+  mkdir -p /etc/docker
+  # vfs n'utilise aucun mount overlay -> fonctionne même en LXC non privilégié.
+  cat > /etc/docker/daemon.json <<'JSON'
+{
+  "storage-driver": "vfs",
+  "features": { "containerd-snapshotter": false }
+}
+JSON
+  systemctl restart docker
+  sleep 4
+  docker network inspect netauto >/dev/null 2>&1 || docker network create netauto >/dev/null
+  docker compose -f webui/docker-compose.yml build
+fi
 ok "Image webui construite"
 
 # Inventaire LibreNMS (nécessite l'image webui pour python + accès réseau)
