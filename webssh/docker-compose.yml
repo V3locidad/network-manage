@@ -8,6 +8,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      # En LXC, le bridge de build n'a pas toujours de route sortante -> on
+      # build avec le réseau de l'hôte (qui, lui, fonctionne).
+      network: host
     image: net-automation/webssh:latest
     container_name: webssh
     restart: unless-stopped
