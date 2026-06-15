@@ -18,6 +18,11 @@
 # ============================================================================
 set -euo pipefail
 
+# Dans un LXC, le builder BuildKit échoue souvent (mount overlayfs refusé) :
+# on force le builder classique, qui fonctionne en conteneur.
+export DOCKER_BUILDKIT=0
+export COMPOSE_DOCKER_CLI_BUILD=0
+
 REPO_URL="${REPO_URL:-https://github.com/V3locidad/network-manage.git}"
 INSTALL_DIR="${INSTALL_DIR:-/opt/net-automation}"
 IMAGE="net-automation/webui:latest"
