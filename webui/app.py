@@ -166,6 +166,8 @@ BASELINE_JSON = "/backups/baseline.json"
 BASELINE_DEFAULTS = {
     "ntp_server": "", "logging_server": "",
     "snmp_community": "", "snmp_contact": "", "snmp_location": "",
+    # Plusieurs communautés : [{name, access}] à configurer, [noms] à retirer.
+    "snmp_communities": [], "snmp_remove_communities": [],
     "authorized_manager": "", "protected_vlans": [],
     "loop_protect_disable_timer": 300,
     # Interrupteurs : appliquer ou non chaque bloc.
@@ -194,6 +196,10 @@ def load_baseline():
             data.update(json.load(fh))
     except (OSError, ValueError):
         pass
+    # Migration : une communauté unique -> liste (rétro-compat site.yml/ancien JSON).
+    if not data.get("snmp_communities") and data.get("snmp_community"):
+        data["snmp_communities"] = [{"name": data["snmp_community"],
+                                     "access": "restricted"}]
     return data
 
 
@@ -562,6 +568,24 @@ def settings():
     saved = False
     if request.method == "POST":
         data = {k: request.form.get(k, "").strip() for k in BASELINE_TEXT}
+        # Communautés SNMP : lignes parallèles nom/accès.
+        names = request.form.getlist("snmp_comm_name")
+        accesses = request.form.getlist("snmp_comm_access")
+        comms = []
+        for n, a in zip(names, accesses):
+            n = n.strip()
+            if n:
+                comms.append({"name": n,
+                              "access": a if a in ("restricted", "operator",
+                                                   "manager", "unrestricted")
+                              else "restricted"})
+        data["snmp_communities"] = comms
+        data["snmp_remove_communities"] = [
+            t.strip() for t in re.split(r"[,\n\r]+",
+                                        request.form.get("snmp_remove_communities", ""))
+            if t.strip()]
+        # On n'utilise plus le champ unique : on le vide pour éviter la migration.
+        data["snmp_community"] = ""
         # VLAN protégés : liste d'entiers depuis une saisie « 10, 20, 61 ».
         vlans = []
         for tok in re.split(r"[,\s]+", request.form.get("protected_vlans", "")):

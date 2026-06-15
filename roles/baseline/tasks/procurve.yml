@@ -27,6 +27,23 @@
     protected_ports: "{{ bl_ports_list | default([]) | select | join(',') }}"
 
 # ---- Construire les listes de commandes selon les options activées ---------
+- name: "Compat : communauté unique -> liste"
+  ansible.builtin.set_fact:
+    snmp_communities: "{{ [ {'name': snmp_community, 'access': 'restricted'} ] }}"
+  when:
+    - (snmp_communities | default([]) | length) == 0
+    - (snmp_community | default('') | length) > 0
+
+- name: "Construire les commandes SNMP (retraits puis ajouts)"
+  ansible.builtin.set_fact:
+    bl_snmp_cmds: >-
+      {{ [ 'no snmp-server community "' ~ rc ~ '"'
+           for rc in (snmp_remove_communities | default([])) ]
+         + [ 'snmp-server community "' ~ c.name ~ '" ' ~ (c.access | default('restricted'))
+             for c in (snmp_communities | default([])) ]
+         + (['snmp-server contact "' ~ snmp_contact ~ '" location "' ~ snmp_location ~ '"']
+            if (snmp_contact or snmp_location) else []) }}
+
 - name: "Construire les commandes de services"
   ansible.builtin.set_fact:
     bl_service_cmds: >-
@@ -35,9 +52,7 @@
             if (baseline_ntp | bool) and ntp_server else [])
          + (['logging ' ~ logging_server]
             if (baseline_logging | bool) and logging_server else [])
-         + (['snmp-server community "' ~ snmp_community ~ '" restricted',
-             'snmp-server contact "' ~ snmp_contact ~ '" location "' ~ snmp_location ~ '"']
-            if (baseline_snmp | bool) and snmp_community else [])
+         + (bl_snmp_cmds if (baseline_snmp | bool) else [])
          + (['no web-management', 'no web-management plaintext']
             if (baseline_web_mgmt_off | bool) else [])
          + (['ip authorized-managers ' ~ authorized_manager ~ ' access manager']

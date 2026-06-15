@@ -26,8 +26,27 @@
     <div class="card">
       <h2>SNMP</h2>
       <label class="check"><input type="checkbox" name="baseline_snmp" {% if cfg.baseline_snmp %}checked{% endif %}> Configurer SNMP</label>
-      <label>Communauté</label>
-      <input type="text" name="snmp_community" value="{{ cfg.snmp_community }}" placeholder="public">
+
+      <label>Communautés à configurer</label>
+      <div id="snmp-comms">
+        {% for c in cfg.snmp_communities %}
+        <div class="snmp-row" style="display:flex;gap:6px;margin-bottom:6px;">
+          <input type="text" name="snmp_comm_name" value="{{ c.name }}" placeholder="nom" style="flex:2;">
+          <select name="snmp_comm_access" style="flex:1;">
+            {% for a in ['restricted','operator','manager','unrestricted'] %}
+            <option value="{{ a }}" {% if c.access == a %}selected{% endif %}>{{ a }}</option>
+            {% endfor %}
+          </select>
+          <button type="button" class="rm-row" style="width:auto;margin:0;flex:0 0 auto;background:#4c1d1d;">✕</button>
+        </div>
+        {% endfor %}
+      </div>
+      <button type="button" id="add-comm" style="width:auto;margin:4px 0 10px;background:#334155;">+ Ajouter une communauté</button>
+
+      <label>Communautés à supprimer <span class="muted">(une par ligne, ex : public)</span></label>
+      <textarea name="snmp_remove_communities" rows="2"
+                style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #475569;background:#0f172a;color:#e2e8f0;">{{ cfg.snmp_remove_communities | join('\n') }}</textarea>
+
       <label>Contact</label>
       <input type="text" name="snmp_contact" value="{{ cfg.snmp_contact }}" placeholder="admin@example.com">
       <label>Localisation</label>
@@ -57,4 +76,30 @@
   </div>
   <button type="submit" style="max-width:240px;">Enregistrer les réglages</button>
 </form>
+
+<script>
+  (function () {
+    var box = document.getElementById('snmp-comms');
+    function rowHtml() {
+      return '<div class="snmp-row" style="display:flex;gap:6px;margin-bottom:6px;">' +
+        '<input type="text" name="snmp_comm_name" placeholder="nom" style="flex:2;">' +
+        '<select name="snmp_comm_access" style="flex:1;">' +
+        '<option value="restricted">restricted</option>' +
+        '<option value="operator">operator</option>' +
+        '<option value="manager">manager</option>' +
+        '<option value="unrestricted">unrestricted</option>' +
+        '</select>' +
+        '<button type="button" class="rm-row" style="width:auto;margin:0;flex:0 0 auto;background:#4c1d1d;">✕</button>' +
+        '</div>';
+    }
+    document.getElementById('add-comm').addEventListener('click', function () {
+      box.insertAdjacentHTML('beforeend', rowHtml());
+    });
+    box.addEventListener('click', function (e) {
+      if (e.target.classList.contains('rm-row')) {
+        e.target.closest('.snmp-row').remove();
+      }
+    });
+  })();
+</script>
 {% endblock %}

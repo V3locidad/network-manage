@@ -3,7 +3,10 @@
 # LOCAL inventory/group_vars/all/site.yml (git-ignoré). Ici : valeurs vides.
 ntp_server: ""
 logging_server: ""
-snmp_community: ""
+snmp_community: ""            # rétro-compat : communauté unique
+# Plusieurs communautés : à configurer [{name, access}] / à retirer [noms].
+snmp_communities: []
+snmp_remove_communities: []
 snmp_contact: ""
 snmp_location: ""
 # ⚠️ Le masque doit COUVRIR le réseau de management (sinon lockout du serveur !)
