@@ -112,6 +112,14 @@ else
 fi
 docker compose version >/dev/null 2>&1 || { err "Le plugin 'docker compose' manque."; exit 1; }
 
+# En LXC, BuildKit casse souvent (réseau/overlay). On force le builder classique
+# pour TOUS les shells de la machine -> les rebuilds manuels marchent aussi.
+cat > /etc/profile.d/net-automation-docker.sh <<'EOF'
+# net-automation : builder Docker classique (BuildKit échoue en LXC)
+export DOCKER_BUILDKIT=0
+export COMPOSE_DOCKER_CLI_BUILD=0
+EOF
+
 # Vérifie tout de suite que les conteneurs démarrent (sinon inutile d'aller plus loin).
 preflight_containers
 
