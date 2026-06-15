@@ -66,8 +66,8 @@ def main():
         if only_up and d.get("status") == 0:
             continue
         ip = d.get("ip") or d.get("hostname") or ""
-        # Nom lisible : sysName si dispo, sinon hostname.
-        name = sanitize(d.get("sysName") or d.get("hostname") or ip)
+        # Nom lisible : sysName si dispo, sinon hostname. Mis en MAJUSCULES.
+        name = sanitize(d.get("sysName") or d.get("hostname") or ip).upper()
         if not ip:
             skipped.append("%s (pas d'IP)" % name)
             continue

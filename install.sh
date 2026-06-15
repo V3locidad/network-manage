@@ -171,6 +171,9 @@ USE_LNMS=no
 if yesno "Générer l'inventaire automatiquement depuis LibreNMS ?" o; then
   ask "URL de LibreNMS (ex: http://${FIRST_IP%.*}.250)" ""; LNMS_URL="$REPLY_VAL"
   ask_secret "Jeton API LibreNMS"; LNMS_TOKEN="$REPLY_VAL"
+  # Persistés (hors Git) pour pouvoir re-synchroniser plus tard sans réinstaller.
+  set_kv webui/.env LNMS_URL "$LNMS_URL"
+  set_kv webui/.env LNMS_TOKEN "$LNMS_TOKEN"
   USE_LNMS=yes
 fi
 
