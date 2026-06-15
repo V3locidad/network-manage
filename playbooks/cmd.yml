@@ -1,0 +1,59 @@
+---
+# ============================================================================
+# Exécute des commandes libres sur les switchs et écrit le résultat propre
+# dans {{ backup_dir }}/cmd_result.json (affiché par la page « Console »).
+# Pour de la config : « configure terminal » … « end » … « write memory ».
+# ============================================================================
+
+- name: "Commandes libres"
+  hosts: "{{ target | default('procurve') }}"
+  gather_facts: false
+
+  vars:
+    target: procurve
+    commands: []
+
+  tasks:
+    - name: "Exécuter les commandes"
+      ansible.netcommon.cli_command:
+        command: "{{ item }}"
+      loop: "{{ commands }}"
+      register: cmd_results
+      changed_when: false
+      failed_when: false
+
+    - name: "Structurer la sortie (nettoyée)"
+      ansible.builtin.set_fact:
+        host_cmd_results: >-
+          {{ host_cmd_results | default([]) + [ {
+               'command': item.item | default(''),
+               'output': (item.stdout | default(item.msg) | default(''))
+                          | regex_replace('^b[\'\"]', '')
+                          | regex_replace('[\'\"]$', '')
+                          | regex_replace('\\\\r\\\\n', '\n')
+                          | regex_replace('\\\\r', '')
+                          | regex_replace('\\\\n', '\n')
+             } ] }}
+      loop: "{{ cmd_results.results | default([]) }}"
+      loop_control:
+        label: "{{ item.item | default('') }}"
+
+- name: "Consolidation du résultat"
+  hosts: localhost
+  gather_facts: false
+  vars:
+    out: "{{ backup_dir }}/cmd_result.json"
+  tasks:
+    - name: "Rassembler par switch"
+      ansible.builtin.set_fact:
+        cmd_report: >-
+          {{ cmd_report | default([])
+             + [ { 'host': item, 'results': hostvars[item].host_cmd_results | default([]) } ] }}
+      loop: "{{ groups['switches'] }}"
+      when: hostvars[item].host_cmd_results is defined
+
+    - name: "Écrire le JSON"
+      ansible.builtin.copy:
+        content: "{{ cmd_report | default([]) | to_nice_json }}"
+        dest: "{{ out }}"
+        mode: "0644"

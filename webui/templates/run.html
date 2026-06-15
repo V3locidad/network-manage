@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+<p><a href="{{ back | default(url_for('index')) }}" style="color:#60a5fa;">← Retour</a></p>
+<h2>{{ action }}</h2>
+<pre id="log">Démarrage…
+</pre>
+<script>
+  const log = document.getElementById('log');
+  const es = new EventSource("{{ url_for('stream', run_id=run_id) }}");
+  es.onmessage = (e) => {
+    log.textContent += e.data + "\n";
+    log.scrollTop = log.scrollHeight;
+  };
+  es.addEventListener('end', () => {
+    es.close();
+    {% if auto_redirect %}
+    setTimeout(() => { window.location = "{{ back }}"; }, 1200);
+    {% endif %}
+  });
+  es.onerror = () => es.close();
+</script>
+{% endblock %}

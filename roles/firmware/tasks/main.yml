@@ -1,0 +1,16 @@
+---
+# Rôle firmware — met à jour l'OS d'un switch. Valide puis aiguille par vendor.
+# ⚠️ OPÉRATION SENSIBLE (reboot). firmware_check=true par défaut.
+
+- name: "Validation des paramètres firmware"
+  ansible.builtin.assert:
+    that:
+      - firmware_image | default('') | length > 0
+      - firmware_tftp_server | default('') | length > 0
+    fail_msg: >-
+      firmware_image (nom du .swi) et firmware_tftp_server (IP du TFTP)
+      sont obligatoires.
+    quiet: true
+
+- name: "Aiguillage vers l'implémentation {{ switch_vendor }}"
+  ansible.builtin.include_tasks: "{{ switch_vendor }}.yml"

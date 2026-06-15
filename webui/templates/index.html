@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="grid">
+
+  <!-- Sauvegarde -->
+  <div class="card">
+    <div class="icon">{{ actions.backup.icon }}</div>
+    <h2>{{ actions.backup.label }}</h2>
+    <p>{{ actions.backup.desc }}</p>
+    <form method="post" action="{{ url_for('run', action='backup') }}">
+      <label>Cible</label>
+      <select name="target">
+        {% for t in targets %}<option value="{{ t[0] }}">{{ t[1] }}</option>{% endfor %}
+      </select>
+      <button type="submit">Lancer la sauvegarde</button>
+    </form>
+  </div>
+
+  <!-- Rapport -->
+  <div class="card">
+    <div class="icon">{{ actions.report.icon }}</div>
+    <h2>{{ actions.report.label }}</h2>
+    <p>{{ actions.report.desc }}</p>
+    <form method="post" action="{{ url_for('run', action='report') }}">
+      <label>Cible</label>
+      <select name="target">
+        {% for t in targets %}<option value="{{ t[0] }}">{{ t[1] }}</option>{% endfor %}
+      </select>
+      <button type="submit">Générer le rapport</button>
+    </form>
+  </div>
+
+  <!-- VLAN -->
+  <div class="card">
+    <div class="icon">{{ actions.vlan.icon }}</div>
+    <h2>{{ actions.vlan.label }}</h2>
+    <p>{{ actions.vlan.desc }}</p>
+    <form method="post" action="{{ url_for('run', action='vlan') }}">
+      <label>N° du VLAN</label>
+      <input type="number" name="vlan_id" min="1" max="4094" required>
+      <label>Nom du VLAN</label>
+      <input type="text" name="vlan_name" required>
+      <label>Action</label>
+      <select name="vlan_state">
+        <option value="present">Créer / mettre à jour</option>
+        <option value="absent">Supprimer</option>
+      </select>
+      <label>Cible</label>
+      <select name="target">
+        {% for t in targets %}<option value="{{ t[0] }}">{{ t[1] }}</option>{% endfor %}
+      </select>
+      <div class="check">
+        <input type="checkbox" name="vlan_dry_run" id="dry" checked>
+        <label for="dry" style="margin:0;">Simulation (ne rien écrire)</label>
+      </div>
+      <button type="submit">Appliquer</button>
+    </form>
+  </div>
+
+  <!-- Port -->
+  <div class="card">
+    <div class="icon">{{ actions.port.icon }}</div>
+    <h2>{{ actions.port.label }}</h2>
+    <p>{{ actions.port.desc }}</p>
+    <form method="post" action="{{ url_for('run', action='port') }}">
+      <label>Port (ex : 5, ou 1-4)</label>
+      <input type="text" name="port_id" placeholder="5" required>
+      <label>Action</label>
+      <select name="port_state">
+        <option value="disable">Désactiver</option>
+        <option value="enable">Activer</option>
+      </select>
+      <label>Switch (un seul)</label>
+      <select name="target">
+        {% for t in hosts %}<option value="{{ t[0] }}">{{ t[1] }}</option>{% endfor %}
+      </select>
+      <div class="check">
+        <input type="checkbox" name="port_dry_run" id="pdry" checked>
+        <label for="pdry" style="margin:0;">Simulation (ne rien écrire)</label>
+      </div>
+      <button type="submit">Appliquer</button>
+    </form>
+  </div>
+
+  <!-- Firmware -->
+  <div class="card">
+    <div class="icon">{{ actions.firmware.icon }}</div>
+    <h2>{{ actions.firmware.label }}</h2>
+    <p>{{ actions.firmware.desc }}</p>
+    <form method="post" action="{{ url_for('run', action='firmware') }}">
+      <label>Fichier image (.swi sur le TFTP)</label>
+      <input type="text" name="firmware_image" placeholder="WC_16_11_0014.swi" required>
+      <label>Version cible (vérif après reboot)</label>
+      <input type="text" name="firmware_target_version" placeholder="WC.16.11.0014">
+      <label>Switch (un seul)</label>
+      <select name="target">
+        {% for t in hosts %}<option value="{{ t[0] }}">{{ t[1] }}</option>{% endfor %}
+      </select>
+      <div class="check">
+        <input type="checkbox" name="firmware_check" id="fchk" checked>
+        <label for="fchk" style="margin:0;">Simulation (pas de reboot)</label>
+      </div>
+      <p class="warn">⚠️ Décocher = reboot du switch (~2-3 min de coupure).</p>
+      <button type="submit">Lancer</button>
+    </form>
+  </div>
+
+  <!-- Port -> VLAN d'accès -->
+  <div class="card">
+    <div class="icon">{{ actions.access.icon }}</div>
+    <h2>{{ actions.access.label }}</h2>
+    <p>{{ actions.access.desc }}</p>
+    <form method="post" action="{{ url_for('run', action='access') }}">
+      <label>VLAN d'accès</label>
+      <select name="access_vlan_id" required>
+        {% for v in vlans %}<option value="{{ v.id }}">{{ v.id }} — {{ v.name }}</option>{% endfor %}
+      </select>
+      {% if not vlans %}<p class="warn">Liste vide → clique « Rafraîchir les VLANs ».</p>{% endif %}
+      <label>Port (ex : 5, ou 1-4)</label>
+      <input type="text" name="access_port_id" placeholder="5" required>
+      <label>Switch (un seul)</label>
+      <select name="target">
+        {% for t in hosts %}<option value="{{ t[0] }}">{{ t[1] }}</option>{% endfor %}
+      </select>
+      <div class="check">
+        <input type="checkbox" name="access_dry_run" id="adry" checked>
+        <label for="adry" style="margin:0;">Simulation (ne rien écrire)</label>
+      </div>
+      <button type="submit">Assigner</button>
+    </form>
+    <form method="post" action="{{ url_for('run', action='vlan_list') }}" style="margin-top:8px;">
+      <input type="hidden" name="target" value="procurve">
+      <button type="submit" style="width:auto;padding:6px 12px;background:#334155;">🔄 Rafraîchir les VLANs</button>
+    </form>
+  </div>
+
+  <!-- Config standard -->
+  <div class="card">
+    <div class="icon">{{ actions.stdconfig.icon }}</div>
+    <h2>{{ actions.stdconfig.label }}</h2>
+    <p>{{ actions.stdconfig.desc }}</p>
+    <form method="post" action="{{ url_for('run', action='stdconfig') }}">
+      <label>Cible</label>
+      <select name="target">
+        {% for t in targets %}<option value="{{ t[0] }}">{{ t[1] }}</option>{% endfor %}
+      </select>
+      <div class="check">
+        <input type="checkbox" name="baseline_dry_run" id="bdry" checked>
+        <label for="bdry" style="margin:0;">Simulation (ne rien écrire)</label>
+      </div>
+      <p class="warn">Valeurs (NTP/SNMP/…) définies dans site.yml du serveur.</p>
+      <button type="submit">Appliquer</button>
+    </form>
+  </div>
+
+  <!-- Commandes libres (pleine largeur) -->
+  <div class="card" style="grid-column: 1 / -1;">
+    <div class="icon">{{ actions.cmd.icon }}</div>
+    <h2>{{ actions.cmd.label }}</h2>
+    <p>{{ actions.cmd.desc }}
+      Pour de la config : commence par <code>configure terminal</code>,
+      finis par <code>end</code> puis <code>write memory</code>.</p>
+    <form method="post" action="{{ url_for('run', action='cmd') }}">
+      <label>Commandes (une par ligne)</label>
+      <textarea name="commands" rows="5" required
+        style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #475569;
+               background:#0f172a;color:#e2e8f0;font-family:monospace;"
+        placeholder="show vlans&#10;show lldp info remote-device"></textarea>
+      <label>Cible</label>
+      <select name="target">
+        {% for t in targets %}<option value="{{ t[0] }}">{{ t[1] }}</option>{% endfor %}
+      </select>
+      <button type="submit">Exécuter</button>
+    </form>
+  </div>
+
+</div>
+{% endblock %}

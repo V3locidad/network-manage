@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% macro cell(ok) %}
+  {% if ok %}<span style="color:#4ade80;">✅</span>
+  {% else %}<span style="color:#fbbf24;">⚠️</span>{% endif %}
+{% endmacro %}
+{% block content %}
+<p><a href="{{ url_for('index') }}" style="color:#60a5fa;">← Actions</a></p>
+<h2>Conformité du parc</h2>
+
+<div class="card" style="margin-bottom:16px;">
+  {% if scanned %}
+    <p style="margin:0;font-size:18px;">
+      <strong style="color:#4ade80;">{{ n_ok }}</strong> / {{ total }} switchs conformes
+    </p>
+  {% else %}
+    <p style="margin:0;color:#94a3b8;">Aucune donnée. Lance un audit.</p>
+  {% endif %}
+  <p style="margin:8px 0 0;color:#94a3b8;font-size:13px;">
+    Référence : NTP, Logging, SNMP, web-management désactivé, authorized-managers,
+    sécurité des ports (loop-protect + BPDU). Valeurs définies dans site.yml.</p>
+  <form method="post" action="{{ url_for('run', action='audit') }}" style="margin-top:12px;">
+    <input type="hidden" name="target" value="procurve">
+    <button type="submit" style="width:auto;padding:8px 16px;">🔍 Lancer l'audit (scan du parc)</button>
+  </form>
+</div>
+
+{% if rows %}
+<table style="width:100%;border-collapse:collapse;font-size:14px;">
+  <thead>
+    <tr style="text-align:left;color:#94a3b8;border-bottom:1px solid #334155;">
+      <th style="padding:8px;">Switch</th>
+      <th style="padding:8px;">NTP</th>
+      <th style="padding:8px;">Logging</th>
+      <th style="padding:8px;">SNMP</th>
+      <th style="padding:8px;">Web off</th>
+      <th style="padding:8px;">Auth-mgr</th>
+      <th style="padding:8px;">Sécu ports</th>
+      <th style="padding:8px;">État</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in rows %}
+    <tr style="border-bottom:1px solid #1e293b;">
+      <td style="padding:8px;">{{ r.host }}</td>
+      <td style="padding:8px;">{{ cell(r.ntp) }}</td>
+      <td style="padding:8px;">{{ cell(r.logging) }}</td>
+      <td style="padding:8px;">{{ cell(r.snmp_overall) }}</td>
+      <td style="padding:8px;">{{ cell(r.web_mgmt) }}</td>
+      <td style="padding:8px;">{{ cell(r.authmgr) }}</td>
+      <td style="padding:8px;">{{ cell(r.portsec) }}</td>
+      <td style="padding:8px;">
+        {% if r.ok %}<span style="color:#4ade80;">✅ Conforme</span>
+        {% else %}<span style="color:#fbbf24;">⚠️ {{ r.ecarts }} écart(s)</span>{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p style="color:#94a3b8;">Clique sur <strong>Lancer l'audit</strong> pour scanner
+  le parc (~1-2 min).</p>
+{% endif %}
+{% endblock %}

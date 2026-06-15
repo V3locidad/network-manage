@@ -1,0 +1,22 @@
+---
+# Audit de conformité — Aruba 2930F / AOS-Switch (lecture seule).
+# Compare la running-config aux valeurs standard du site (site.yml).
+
+- name: "Lire la running-config"
+  ansible.netcommon.cli_command:
+    command: show running-config
+  register: audit_rc
+  changed_when: false
+
+- name: "Évaluer les contrôles de conformité"
+  ansible.builtin.set_fact:
+    audit_result:
+      host: "{{ inventory_hostname }}"
+      ip: "{{ ansible_host | default('') }}"
+      ntp: "{{ (ntp_server | default('')) | length > 0 and ('ntp server ' ~ ntp_server) in audit_rc.stdout }}"
+      logging: "{{ (logging_server | default('')) | length > 0 and ('logging ' ~ logging_server) in audit_rc.stdout }}"
+      snmp: "{{ (snmp_community | default('')) | length > 0 and ('community \"' ~ snmp_community ~ '\"') in audit_rc.stdout }}"
+      snmp_public: "{{ 'community \"public\"' not in audit_rc.stdout }}"
+      web_mgmt: "{{ 'no web-management' in audit_rc.stdout }}"
+      authmgr: "{{ 'ip authorized-managers' in audit_rc.stdout }}"
+      portsec: "{{ 'loop-protect' in audit_rc.stdout and 'bpdu-protection' in audit_rc.stdout }}"

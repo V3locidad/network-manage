@@ -1,0 +1,19 @@
+---
+# ============================================================================
+# Active ou désactive un port (ou une plage) sur les switchs ciblés.
+#
+#   ansible-playbook playbooks/port.yml \
+#     -e "port_id=5 port_state=disable target=sw-coeur-01 port_dry_run=true"
+# ============================================================================
+
+- name: "Gestion des ports"
+  hosts: "{{ target | default('procurve') }}"
+  gather_facts: false
+
+  vars:
+    target: procurve
+    port_state: disable
+    port_dry_run: true
+
+  roles:
+    - role: port

@@ -1,0 +1,24 @@
+---
+# MODÈLE de configuration standard du site (role baseline).
+# Copie en site.yml (git-ignoré) et mets tes vraies valeurs :
+#   cp inventory/group_vars/all/site.example.yml inventory/group_vars/all/site.yml
+#
+# Ces variables sont chargées automatiquement par Ansible (group_vars/all).
+
+ntp_server: "10.0.0.155"
+logging_server: "10.0.0.251"
+
+snmp_community: "public"
+snmp_contact: "admin@example.com"
+snmp_location: "Site"
+
+# ⚠️ Le masque doit COUVRIR le réseau de management, sinon le serveur Ansible
+# se fait verrouiller l'accès. Ex : "10.0.0.0 255.255.255.0" = tout le /24.
+authorized_manager: "10.0.0.0 255.255.255.0"
+
+# VLAN dont les ports d'accès (untagged) reçoivent admin-edge + bpdu + loop-protect.
+protected_vlans: [10, 20]
+
+# Délai (s) avant réactivation auto d'un port coupé par loop-protect.
+# 0 = jamais (réactivation manuelle obligatoire).
+loop_protect_disable_timer: 300

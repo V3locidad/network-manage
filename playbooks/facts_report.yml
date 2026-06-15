@@ -1,0 +1,41 @@
+---
+# ============================================================================
+# Génère un rapport CSV consolidé de tout le parc (modèle, version, série).
+# Sortie : {{ backup_dir }}/parc_report.csv  (persistant — /backups)
+#
+#   ansible-playbook playbooks/facts_report.yml --ask-vault-pass
+# ============================================================================
+
+- name: "Collecte des facts du parc"
+  hosts: "{{ target | default('switches') }}"
+  gather_facts: false
+
+  vars:
+    target: switches
+
+  roles:
+    - role: facts_report
+
+- name: "Consolidation du rapport CSV"
+  hosts: localhost
+  gather_facts: false
+  vars:
+    report_path: "{{ backup_dir }}/parc_report.csv"
+
+  tasks:
+    - name: "En-tête du CSV"
+      ansible.builtin.copy:
+        content: "hostname,vendor,ip,modele,version,serial\n"
+        dest: "{{ report_path }}"
+        mode: "0644"
+
+    - name: "Ajouter une ligne par switch"
+      ansible.builtin.lineinfile:
+        path: "{{ report_path }}"
+        line: "{{ hostvars[item].fact_line | trim }}"
+      loop: "{{ groups['switches'] }}"
+      when: hostvars[item].fact_line is defined
+
+    - name: "Rapport généré"
+      ansible.builtin.debug:
+        msg: "Rapport du parc → {{ report_path }}"

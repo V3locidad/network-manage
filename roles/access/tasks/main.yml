@@ -1,0 +1,14 @@
+---
+# Rôle access — place un port en accès (untagged) dans un VLAN. Valide + aiguille.
+
+- name: "Validation des paramètres"
+  ansible.builtin.assert:
+    that:
+      - access_vlan_id | string | length > 0
+      - access_vlan_id | int >= 1
+      - access_port_id | length > 0
+    fail_msg: "access_vlan_id (>=1) et access_port_id sont obligatoires."
+    quiet: true
+
+- name: "Aiguillage vers l'implémentation {{ switch_vendor }}"
+  ansible.builtin.include_tasks: "{{ switch_vendor }}.yml"

@@ -1,0 +1,16 @@
+---
+# Collections Ansible nécessaires pour le multi-vendor.
+# Installation :  ansible-galaxy collection install -r requirements.yml
+# Pas de contrainte de version : on prend les dernières publiées sur Galaxy.
+# (Doit rester aligné avec collections/requirements.yml.)
+collections:
+  # Cisco IOS / IOS-XE
+  - name: cisco.ios
+  # Cisco NX-OS (Nexus)
+  - name: cisco.nxos
+  # Aruba CX (6000/6300/8320...) via REST API
+  - name: arubanetworks.aoscx
+  # HP/Aruba OS-Switch (2930F, ProCurve/ProVision...) via SSH ou REST
+  - name: arubanetworks.aos_switch
+  # Modules réseau génériques (cli_command, cli_config, backups...)
+  - name: ansible.netcommon

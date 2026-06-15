@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block content %}
+<p><a href="{{ url_for('index') }}" style="color:#60a5fa;">← Actions</a></p>
+<h2>État firmware du parc</h2>
+
+<div class="card" style="margin-bottom:16px;">
+  {% if target %}
+    <p style="margin:0 0 8px;">Version de référence (image déposée) :
+      <strong style="color:#60a5fa;">{{ target }}</strong></p>
+    <p style="margin:0;color:#94a3b8;font-size:13px;">
+      Images sur le TFTP : {{ images | map(attribute='file') | join(', ') }}</p>
+  {% else %}
+    <p class="warn" style="margin:0;">Aucune image <code>.swi</code> déposée dans
+      <code>firmware/images/</code> — impossible de comparer. Dépose une image
+      pour définir la version cible.</p>
+  {% endif %}
+  {% if scanned %}
+    <p style="margin:10px 0 0;">
+      <span style="color:#4ade80;">{{ n_ok }} à jour</span> ·
+      <span style="color:#fbbf24;">{{ n_old }} à mettre à jour</span>
+    </p>
+  {% endif %}
+  <form method="post" action="{{ url_for('run', action='firmware_status') }}" style="margin-top:12px;">
+    <input type="hidden" name="target" value="procurve">
+    <button type="submit" style="width:auto;padding:8px 16px;">🔄 Rafraîchir l'état (scan des switchs)</button>
+  </form>
+</div>
+
+{% if rows %}
+<table style="width:100%;border-collapse:collapse;font-size:14px;">
+  <thead>
+    <tr style="text-align:left;color:#94a3b8;border-bottom:1px solid #334155;">
+      <th style="padding:8px;">Switch</th>
+      <th style="padding:8px;">IP</th>
+      <th style="padding:8px;">Version</th>
+      <th style="padding:8px;">État</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in rows %}
+    <tr style="border-bottom:1px solid #1e293b;">
+      <td style="padding:8px;">{{ r.host }}</td>
+      <td style="padding:8px;color:#94a3b8;">{{ r.ip }}</td>
+      <td style="padding:8px;font-family:monospace;">{{ r.version }}</td>
+      <td style="padding:8px;">
+        {% if r.status == 'ok' %}<span style="color:#4ade80;">✅ À jour</span>
+        {% elif r.status == 'outdated' %}<span style="color:#fbbf24;">⚠️ À mettre à jour</span>
+        {% elif r.status == 'unknown' %}<span style="color:#94a3b8;">? Inconnu</span>
+        {% else %}<span style="color:#94a3b8;">— (pas de référence)</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p style="color:#94a3b8;">Aucune donnée. Clique sur <strong>Rafraîchir l'état</strong>
+  pour scanner les switchs (~1-2 min pour le parc).</p>
+{% endif %}
+{% endblock %}

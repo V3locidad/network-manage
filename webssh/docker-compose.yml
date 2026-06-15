@@ -1,0 +1,22 @@
+---
+# Terminal SSH dans le navigateur (xterm). Page web où l'on se connecte à un
+# switch (IP + identifiants) et où l'on obtient une vraie session interactive.
+# Démarrage :  cd webssh && docker compose up -d --build
+# Accès :      http://<ip-lxc>:8888
+services:
+  webssh:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: net-automation/webssh:latest
+    container_name: webssh
+    restart: unless-stopped
+    # Plus de port publié : accessible UNIQUEMENT via Caddy (TLS + auth).
+    expose:
+      - "8888"
+    networks:
+      - netauto
+
+networks:
+  netauto:
+    external: true

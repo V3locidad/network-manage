@@ -1,0 +1,39 @@
+---
+# ============================================================================
+# Mise à jour firmware — OPÉRATION SENSIBLE (reboot).
+#
+# Garde-fous :
+#   serial: 1           → un switch à la fois
+#   firmware_check=true → SIMULATION par défaut (ne reboote rien)
+#   cible explicite     → interdit de viser un groupe entier d'un coup
+#
+# Exemple (réel, après lab) :
+#   ansible-playbook playbooks/firmware.yml \
+#     -e "target=sw-acces-07 firmware_check=false \
+#         firmware_image=WC_16_11_0014.swi firmware_target_version=WC.16.11.0014 \
+#         firmware_tftp_server=10.0.0.50"
+# ============================================================================
+
+- name: "Mise à jour firmware (un switch à la fois)"
+  hosts: "{{ target | default('none') }}"
+  gather_facts: false
+  serial: 1
+  max_fail_percentage: 0
+
+  vars:
+    target: none
+    firmware_check: true
+
+  pre_tasks:
+    - name: "Garde-fou : cible précise (pas un groupe) + paramètres requis"
+      ansible.builtin.assert:
+        that:
+          - target not in ['none', 'switches', 'procurve', 'cisco_ios', 'cisco_nxos', 'aruba_cx']
+          - firmware_image | default('') | length > 0
+          - firmware_tftp_server | default('') | length > 0
+        fail_msg: >-
+          Vise UN switch précis (pas un groupe), et fournis firmware_image +
+          firmware_tftp_server. firmware_check reste à true tant que non testé.
+
+  roles:
+    - role: firmware

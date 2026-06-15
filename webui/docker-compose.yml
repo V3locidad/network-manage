@@ -1,0 +1,33 @@
+---
+# Interface web maison (ultra-simple) pour lancer les playbooks switchs.
+# Démarrage :  cd webui && docker compose up -d --build
+# Accès :      http://10.0.0.50:8080
+services:
+  webui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: net-automation/webui:latest
+    container_name: webui
+    restart: unless-stopped
+    # Plus de port publié : accessible UNIQUEMENT via le reverse proxy Caddy.
+    expose:
+      - "8080"
+    networks:
+      - netauto
+    environment:
+      WEBUI_PASSWORD: ${WEBUI_PASSWORD}
+      WEBUI_SECRET: ${WEBUI_SECRET}
+    volumes:
+      # Le projet Ansible (lecture seule) + les sauvegardes (écriture).
+      - /opt/net-automation:/project:ro
+      - /opt/net-automation/backups:/backups
+      # Identifiants des switchs (ansible_user / ansible_password), hors dépôt.
+      - /opt/net-automation/secret/switch_creds.yml:/secret/switch_creds.yml:ro
+      # Code de l'app monté en direct : un rsync + restart suffit (pas de rebuild).
+      - ./app.py:/app/app.py:ro
+      - ./templates:/app/templates:ro
+
+networks:
+  netauto:
+    external: true

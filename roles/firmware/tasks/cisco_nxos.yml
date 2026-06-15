@@ -1,0 +1,8 @@
+---
+# Mise à jour firmware Cisco NX-OS — squelette à compléter.
+# NX-OS utilise le module dédié cisco.nxos.nxos_install_os (ISSU possible).
+- name: "NX-OS — mise à jour de l'OS"
+  cisco.nxos.nxos_install_os:
+    system_image_file: "{{ firmware_image }}"
+  when: not (firmware_check | bool)
+  # ⚠️ À tester en lab : gère le reboot, prévoir une fenêtre de maintenance.

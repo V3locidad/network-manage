@@ -1,0 +1,10 @@
+---
+# Variables communes à TOUS les switchs, tous constructeurs confondus.
+
+# Répertoire où sont stockées les sauvegardes de config (rôle backup).
+# Côté conteneur : /backups est un volume persistant (cf. docker-compose).
+# En CLI directe : surcharge avec -e backup_dir=... si besoin.
+backup_dir: "/backups"
+
+# Par défaut on n'écrit pas la config en mémoire permanente automatiquement ;
+# chaque rôle vendor le gère explicitement après modification.

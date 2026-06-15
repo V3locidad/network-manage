@@ -1,0 +1,12 @@
+---
+# Connexion pour les switchs Cisco IOS / IOS-XE
+ansible_connection: ansible.netcommon.network_cli
+ansible_network_os: cisco.ios.ios
+ansible_user: "{{ vault_cisco_user }}"
+ansible_password: "{{ vault_cisco_pass }}"
+ansible_become: true
+ansible_become_method: enable
+ansible_become_password: "{{ vault_cisco_enable }}"
+
+# Identifiant de "vendor" utilisé par les rôles pour l'aiguillage.
+switch_vendor: cisco_ios

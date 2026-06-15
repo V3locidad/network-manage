@@ -1,0 +1,10 @@
+---
+# L'interface (et ansible-galaxy) installe automatiquement les collections listées ici avant
+# d'exécuter un playbook (chemin reconnu : collections/requirements.yml).
+# Pas de contrainte de version : on prend les dernières publiées sur Galaxy.
+collections:
+  - name: cisco.ios
+  - name: cisco.nxos
+  - name: arubanetworks.aoscx
+  - name: arubanetworks.aos_switch
+  - name: ansible.netcommon

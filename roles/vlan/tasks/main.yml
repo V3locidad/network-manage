@@ -1,0 +1,23 @@
+---
+# ============================================================================
+# Rôle vlan — point d'entrée.
+# Valide les paramètres, puis aiguille vers l'implémentation du bon vendor.
+# Les techniciens ne voient QUE ce rôle : la complexité
+# multi-constructeur est cachée dans les fichiers tasks/<vendor>.yml.
+# ============================================================================
+
+- name: "Validation des paramètres d'entrée"
+  ansible.builtin.assert:
+    that:
+      - vlan_id | string | length > 0
+      - vlan_id | int >= 1
+      - vlan_id | int <= 4094
+      - vlan_name | length > 0
+      - vlan_state in ['present', 'absent']
+    fail_msg: >-
+      Paramètres invalides — vlan_id (1-4094) et vlan_name sont obligatoires,
+      vlan_state doit être 'present' ou 'absent'.
+    quiet: true
+
+- name: "Aiguillage vers l'implémentation {{ switch_vendor }}"
+  ansible.builtin.include_tasks: "{{ switch_vendor }}.yml"

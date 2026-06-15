@@ -1,0 +1,18 @@
+---
+# ============================================================================
+# Place un port en accès (untagged) dans un VLAN, sur un switch.
+#
+#   ansible-playbook playbooks/access.yml \
+#     -e "target=sw-acces-07 access_vlan_id=20 access_port_id=5 access_dry_run=true"
+# ============================================================================
+
+- name: "Assignation port -> VLAN d'accès"
+  hosts: "{{ target | default('procurve') }}"
+  gather_facts: false
+
+  vars:
+    target: procurve
+    access_dry_run: true
+
+  roles:
+    - role: access

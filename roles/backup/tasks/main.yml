@@ -1,0 +1,50 @@
+---
+# ============================================================================
+# Rôle backup — récupère la running-config de chaque switch et l'archive
+# dans files/backups/<hostname>/<hostname>_<timestamp>.cfg
+# Lecture seule : aucun risque, idéal pour valider la connectivité du parc.
+# ============================================================================
+
+- name: "Préparer le répertoire de sauvegarde pour {{ inventory_hostname }}"
+  ansible.builtin.file:
+    path: "{{ backup_dir }}/{{ inventory_hostname }}"
+    state: directory
+    mode: "0750"
+  delegate_to: localhost
+
+- name: "Horodatage de la sauvegarde"
+  ansible.builtin.set_fact:
+    backup_ts: "{{ lookup('pipe', 'date +%Y%m%d_%H%M%S') }}"
+
+# --- Récupération de la config selon le vendor --------------------------------
+
+- name: "Récupérer la running-config (Aruba CX)"
+  arubanetworks.aoscx.aoscx_command:
+    commands:
+      - "show running-config"
+  register: cfg_aruba_cx
+  when: switch_vendor == 'aruba_cx'
+
+- name: "Récupérer la running-config (CLI réseau)"
+  ansible.netcommon.cli_command:
+    command: "show running-config"
+  register: cfg_cli
+  when: switch_vendor in ['cisco_ios', 'cisco_nxos', 'procurve']
+
+- name: "Normaliser la sortie de config"
+  ansible.builtin.set_fact:
+    running_config: >-
+      {{ (cfg_aruba_cx.stdout[0]
+          if switch_vendor == 'aruba_cx'
+          else cfg_cli.stdout) }}
+
+- name: "Écrire la sauvegarde sur le contrôleur"
+  ansible.builtin.copy:
+    content: "{{ running_config }}\n"
+    dest: "{{ backup_dir }}/{{ inventory_hostname }}/{{ inventory_hostname }}_{{ backup_ts }}.cfg"
+    mode: "0640"
+  delegate_to: localhost
+
+- name: "Sauvegarde terminée"
+  ansible.builtin.debug:
+    msg: "Config de {{ inventory_hostname }} sauvegardée → {{ inventory_hostname }}_{{ backup_ts }}.cfg"

@@ -1,0 +1,18 @@
+---
+# Implémentation VLAN pour Cisco IOS / IOS-XE
+- name: "Cisco IOS — VLAN {{ vlan_id }} ({{ vlan_state }})"
+  cisco.ios.ios_vlans:
+    config:
+      - vlan_id: "{{ vlan_id | int }}"
+        name: "{{ vlan_name }}"
+    state: "{{ 'merged' if vlan_state == 'present' else 'deleted' }}"
+  check_mode: "{{ vlan_dry_run | bool }}"
+  register: ios_vlan_result
+
+- name: "Cisco IOS — sauvegarde de la config (write memory)"
+  cisco.ios.ios_config:
+    save_when: modified
+  when:
+    - vlan_save_config | bool
+    - not (vlan_dry_run | bool)
+    - ios_vlan_result.changed

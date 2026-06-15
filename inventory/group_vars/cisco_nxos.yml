@@ -1,0 +1,10 @@
+---
+# Connexion pour les switchs Cisco Nexus (NX-OS)
+ansible_connection: ansible.netcommon.network_cli
+ansible_network_os: cisco.nxos.nxos
+ansible_user: "{{ vault_cisco_user }}"
+ansible_password: "{{ vault_cisco_pass }}"
+# NX-OS : pas de mode "enable", le compte a directement ses privilèges.
+ansible_become: false
+
+switch_vendor: cisco_nxos

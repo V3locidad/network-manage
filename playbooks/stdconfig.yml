@@ -1,0 +1,20 @@
+---
+# ============================================================================
+# Applique la configuration standard du site + la sécurité des ports d'accès
+# (NTP, logging, SNMP, web-management off, authorized-managers, STP/loop-protect).
+# Valeurs du site : inventory/group_vars/all/site.yml (local).
+#
+#   ansible-playbook playbooks/stdconfig.yml -e "target=procurve baseline_dry_run=true"
+# ============================================================================
+
+- name: "Configuration standard + sécurité des ports"
+  hosts: "{{ target | default('procurve') }}"
+  gather_facts: false
+  serial: 3                       # par paquets de 3 switchs
+
+  vars:
+    target: procurve
+    baseline_dry_run: true        # simulation par défaut
+
+  roles:
+    - role: baseline

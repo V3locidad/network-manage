@@ -1,0 +1,24 @@
+---
+# ============================================================================
+# MODÈLE de fichier de secrets.
+#
+#  1. Copie-le :   cp vault.example.yml vault.yml
+#  2. Remplis les vraies valeurs
+#  3. Chiffre-le : ansible-vault encrypt inventory/group_vars/all/vault.yml
+#
+# vault.yml (en clair) est ignoré par .gitignore — ne JAMAIS le committer.
+# Idéalement, utilise un compte de service dédié par constructeur.
+# ============================================================================
+
+# Cisco
+vault_cisco_user: "svc-ansible"
+vault_cisco_pass: "CHANGE_ME"
+vault_cisco_enable: "CHANGE_ME"      # mot de passe enable / privilege 15
+
+# Aruba CX
+vault_aruba_cx_user: "admin"
+vault_aruba_cx_pass: "CHANGE_ME"
+
+# HP/Aruba ProCurve
+vault_procurve_user: "manager"
+vault_procurve_pass: "CHANGE_ME"

@@ -1,0 +1,10 @@
+---
+# Connexion pour les switchs Aruba CX (via REST API, recommandé)
+ansible_connection: arubanetworks.aoscx.aoscx
+ansible_network_os: arubanetworks.aoscx.aoscx
+ansible_user: "{{ vault_aruba_cx_user }}"
+ansible_password: "{{ vault_aruba_cx_pass }}"
+ansible_aoscx_validate_certs: false      # certif auto-signé par défaut
+ansible_aoscx_use_proxy: false
+
+switch_vendor: aruba_cx

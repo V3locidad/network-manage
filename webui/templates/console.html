@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+<p><a href="{{ url_for('index') }}" style="color:#60a5fa;">← Actions</a></p>
+<h2>Console — résultat des commandes</h2>
+
+{% if report %}
+  {% for h in report %}
+    <div class="card" style="margin-bottom:14px;">
+      <h3 style="margin:0 0 10px;color:#60a5fa;">{{ h.host }}</h3>
+      {% for r in h.results %}
+        <div style="font-family:monospace;color:#4ade80;margin:6px 0 2px;">$ {{ r.command }}</div>
+        <pre style="margin:0 0 10px;background:#020617;border:1px solid #334155;
+                    border-radius:8px;padding:12px;overflow:auto;font-size:12.5px;
+                    line-height:1.45;white-space:pre;">{{ r.output }}</pre>
+      {% endfor %}
+    </div>
+  {% endfor %}
+{% else %}
+  <p style="color:#94a3b8;">Aucun résultat. Lance des commandes depuis la page
+    <a href="{{ url_for('index') }}" style="color:#60a5fa;">Actions</a>.</p>
+{% endif %}
+{% endblock %}

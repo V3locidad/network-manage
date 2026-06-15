@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+<p><a href="{{ url_for('index') }}" style="color:#60a5fa;">← Actions</a></p>
+<h2>Terminal interactif</h2>
+
+<div class="card" style="margin-bottom:16px;">
+  <p style="margin:0;color:#94a3b8;font-size:13px;">
+    Ouvre une session SSH dans le navigateur. L'IP{{ ' et le login' if user }} sont
+    pré-remplis — il ne reste qu'à taper le mot de passe.</p>
+</div>
+
+{% if hosts %}
+<table style="width:100%;border-collapse:collapse;font-size:14px;">
+  <thead>
+    <tr style="text-align:left;color:#94a3b8;border-bottom:1px solid #334155;">
+      <th style="padding:8px;">Switch</th>
+      <th style="padding:8px;">IP</th>
+      <th style="padding:8px;"></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for h in hosts %}
+    <tr style="border-bottom:1px solid #1e293b;">
+      <td style="padding:8px;">{{ h.name }}</td>
+      <td style="padding:8px;color:#94a3b8;font-family:monospace;">{{ h.ip }}</td>
+      <td style="padding:8px;">
+        <a href="{{ webssh }}/?hostname={{ h.ip }}{% if user %}&username={{ user }}{% endif %}"
+           target="_blank" rel="noopener"
+           style="background:#2563eb;color:#fff;padding:6px 14px;border-radius:8px;
+                  text-decoration:none;font-size:13px;">Ouvrir le terminal ↗</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p style="color:#94a3b8;">Aucun switch dans l'inventaire.</p>
+{% endif %}
+{% endblock %}

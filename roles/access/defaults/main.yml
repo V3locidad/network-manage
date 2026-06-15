@@ -1,0 +1,6 @@
+---
+# Assignation d'un port à un VLAN d'accès (untagged).
+access_vlan_id: ""      # VLAN cible (obligatoire)
+access_port_id: ""      # port ou plage (obligatoire)
+access_dry_run: true    # simulation par défaut
+access_save: true       # write memory après application

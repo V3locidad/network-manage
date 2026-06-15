@@ -1,0 +1,17 @@
+---
+# ============================================================================
+# Sauvegarde la running-config de tout le parc.
+# Idéal à planifier (cron) une fois par jour.
+#
+#   ansible-playbook playbooks/backup_config.yml --ask-vault-pass
+# ============================================================================
+
+- name: "Sauvegarde des configurations"
+  hosts: "{{ target | default('switches') }}"
+  gather_facts: false
+
+  vars:
+    target: switches
+
+  roles:
+    - role: backup

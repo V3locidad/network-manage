@@ -1,0 +1,81 @@
+---
+# Mise à jour firmware Aruba 2930F / ArubaOS-Switch via TFTP, en SSH.
+#
+# ⚠️⚠️ PROVOQUE UN REBOOT (coupure ~2-3 min du switch). À RÔDER EN LAB.
+#      firmware_check=true par défaut = simulation, ne touche à rien.
+#      La flash primaire est conservée comme ROLLBACK.
+#
+# NB : les invites exactes (save/continue) peuvent varier selon le firmware ;
+#      ajuste les 'prompt' ci-dessous après un premier test en lab.
+
+# ---- Lecture de l'état actuel de la flash ---------------------------------
+- name: "Lire l'état de la flash (versions)"
+  ansible.netcommon.cli_command:
+    command: show flash
+  register: fw_flash
+  changed_when: false
+
+- name: "Extraire les versions primary / secondary"
+  ansible.builtin.set_fact:
+    fw_primary: >-
+      {{ (fw_flash.stdout | regex_search('Primary Image\s*:\s*\d+\s+\S+\s+(\S+)', '\1')
+          | default(['?'], true)) | first }}
+    fw_secondary: >-
+      {{ (fw_flash.stdout | regex_search('Secondary Image\s*:\s*\d+\s+\S+\s+(\S+)', '\1')
+          | default(['?'], true)) | first }}
+
+# ---- SIMULATION (dry-run) -------------------------------------------------
+- name: "SIMULATION — plan de mise à jour (rien n'est écrit)"
+  ansible.builtin.debug:
+    msg: >-
+      [DRY-RUN] {{ inventory_hostname }} — flash actuelle : primary={{ fw_primary }},
+      secondary={{ fw_secondary }}. Plan : copier « {{ firmware_image }} » depuis
+      tftp://{{ firmware_tftp_server }} en flash {{ firmware_partition }}, puis
+      booter dessus (cible {{ firmware_target_version | default('non précisée') }}).
+      ⚠️ REBOOT requis. Décoche la simulation pour appliquer.
+  when: firmware_check | bool
+
+# ---- APPLICATION RÉELLE ---------------------------------------------------
+- name: "Copier l'image en flash {{ firmware_partition }} (plusieurs minutes)"
+  ansible.netcommon.cli_command:
+    command: "copy tftp flash {{ firmware_tftp_server }} {{ firmware_image }} {{ firmware_partition }}"
+  vars:
+    ansible_command_timeout: 900
+  when: not (firmware_check | bool)
+
+- name: "Basculer le boot sur la flash {{ firmware_partition }} + reboot"
+  ansible.netcommon.cli_command:
+    command: "boot system flash {{ firmware_partition }}"
+    prompt:
+      - "[yY]/[nN]"
+    answer:
+      - "y"
+    check_all: true
+  vars:
+    ansible_command_timeout: 120
+  failed_when: false      # la session SSH tombe au reboot : c'est normal
+  when: not (firmware_check | bool)
+
+- name: "Attendre le retour du switch (SSH)"
+  ansible.builtin.wait_for:
+    host: "{{ ansible_host }}"
+    port: 22
+    delay: 150
+    timeout: 900
+  delegate_to: localhost
+  when: not (firmware_check | bool)
+
+- name: "Relire la flash après reboot"
+  ansible.netcommon.cli_command:
+    command: show flash
+  register: fw_after
+  changed_when: false
+  when: not (firmware_check | bool)
+
+- name: "Résultat de la mise à jour"
+  ansible.builtin.debug:
+    msg: >-
+      {{ inventory_hostname }} redémarré. Cible : {{ firmware_target_version | default('?') }}.
+      Flash après MAJ :
+      {{ fw_after.stdout | default('(non lu)') }}
+  when: not (firmware_check | bool)

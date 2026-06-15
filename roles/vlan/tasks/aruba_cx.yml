@@ -1,0 +1,19 @@
+---
+# Implémentation VLAN pour Aruba CX (REST API)
+- name: "Aruba CX — créer/mettre à jour le VLAN {{ vlan_id }}"
+  arubanetworks.aoscx.aoscx_vlan:
+    vlan_id: "{{ vlan_id | int }}"
+    name: "{{ vlan_name }}"
+    state: create
+  check_mode: "{{ vlan_dry_run | bool }}"
+  when: vlan_state == 'present'
+
+- name: "Aruba CX — supprimer le VLAN {{ vlan_id }}"
+  arubanetworks.aoscx.aoscx_vlan:
+    vlan_id: "{{ vlan_id | int }}"
+    state: delete
+  check_mode: "{{ vlan_dry_run | bool }}"
+  when: vlan_state == 'absent'
+
+# Note : sur Aruba CX, la modif via REST est persistée automatiquement
+# dans la running-config ; un checkpoint/save séparé n'est pas requis ici.

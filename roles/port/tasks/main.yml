@@ -1,0 +1,13 @@
+---
+# Rôle port — active/désactive un port. Valide puis aiguille par vendor.
+
+- name: "Validation des paramètres"
+  ansible.builtin.assert:
+    that:
+      - port_id | length > 0
+      - port_state in ['enable', 'disable']
+    fail_msg: "port_id obligatoire et port_state doit être 'enable' ou 'disable'."
+    quiet: true
+
+- name: "Aiguillage vers l'implémentation {{ switch_vendor }}"
+  ansible.builtin.include_tasks: "{{ switch_vendor }}.yml"

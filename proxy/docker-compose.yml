@@ -1,0 +1,29 @@
+---
+# Reverse proxy Caddy : seul point d'entrée, en HTTPS.
+# Prérequis : le réseau partagé doit exister une fois ->  docker network create netauto
+# Démarrage :  cd proxy && docker compose up -d
+services:
+  caddy:
+    image: caddy:2
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "443:443"     # interface web
+      - "8443:8443"   # terminal WebSSH (auth basique)
+    environment:
+      WEBSSH_HASH: ${WEBSSH_HASH}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./certs:/certs:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - netauto
+
+volumes:
+  caddy_data:
+  caddy_config:
+
+networks:
+  netauto:
+    external: true

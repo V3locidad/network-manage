@@ -1,0 +1,24 @@
+---
+# ============================================================================
+# Déploie (ou supprime) un VLAN sur un ensemble de switchs, tous vendors.
+#
+# Lancement en ligne de commande :
+#   ansible-playbook playbooks/deploy_vlan.yml \
+#     -e "vlan_id=30 vlan_name=VOIP vlan_state=present" \
+#     -e "target=switches vlan_dry_run=false" --ask-vault-pass
+#
+# Dans l'interface web : ces variables sont exposées via le formulaire.
+# ============================================================================
+
+- name: "Déploiement de VLAN"
+  hosts: "{{ target | default('switches') }}"
+  gather_facts: false
+
+  vars:
+    # Valeurs par défaut surchargeables par -e ou le formulaire de l'interface.
+    target: switches
+    vlan_state: present
+    vlan_dry_run: false
+
+  roles:
+    - role: vlan

@@ -1,0 +1,32 @@
+---
+# ============================================================================
+# Audit de conformité du parc (lecture seule). Écrit un JSON consommé par la
+# page « Conformité » de l'interface.
+# Sortie : {{ backup_dir }}/audit.json
+# ============================================================================
+
+- name: "Audit de conformité"
+  hosts: "{{ target | default('switches') }}"
+  gather_facts: false
+  vars:
+    target: switches
+  roles:
+    - role: audit
+
+- name: "Consolidation du JSON"
+  hosts: localhost
+  gather_facts: false
+  vars:
+    out: "{{ backup_dir }}/audit.json"
+  tasks:
+    - name: "Rassembler les résultats"
+      ansible.builtin.set_fact:
+        audit_list: "{{ audit_list | default([]) + [hostvars[item].audit_result] }}"
+      loop: "{{ groups['switches'] }}"
+      when: hostvars[item].audit_result is defined
+
+    - name: "Écrire le JSON"
+      ansible.builtin.copy:
+        content: "{{ audit_list | default([]) | to_nice_json }}"
+        dest: "{{ out }}"
+        mode: "0644"

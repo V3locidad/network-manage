@@ -1,0 +1,10 @@
+---
+# Connexion pour les switchs Aruba 2930F / ArubaOS-Switch (ex-ProCurve)
+# Gestion en SSH via network_cli (cliconf fourni par arubanetworks.aos_switch).
+ansible_connection: ansible.netcommon.network_cli
+ansible_network_os: arubanetworks.aos_switch.arubaoss
+# Identifiants : fournis par l'interface web via secret/switch_creds.yml
+# (-e @...) → injectés comme ansible_user/ansible_password. Aucun mot de passe
+# en clair ici.
+
+switch_vendor: procurve

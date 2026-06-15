@@ -1,0 +1,37 @@
+---
+# ============================================================================
+# Collecte la version firmware de chaque switch et écrit un JSON consommé par
+# la page « État firmware » de l'interface.
+# Sortie : {{ backup_dir }}/firmware_status.json   (lecture seule sur les switchs)
+# ============================================================================
+
+- name: "Collecte des versions firmware"
+  hosts: "{{ target | default('switches') }}"
+  gather_facts: false
+  vars:
+    target: switches
+  roles:
+    - role: facts_report
+
+- name: "Écriture du JSON d'état"
+  hosts: localhost
+  gather_facts: false
+  vars:
+    out: "{{ backup_dir }}/firmware_status.json"
+  tasks:
+    - name: "Construire la liste des statuts"
+      ansible.builtin.set_fact:
+        fw_statuses: "{{ fw_statuses | default([]) + [item_entry] }}"
+      vars:
+        item_entry:
+          host: "{{ item }}"
+          ip: "{{ hostvars[item].ansible_host | default('') }}"
+          version: "{{ hostvars[item].ansible_net_version | default('?') }}"
+      loop: "{{ groups['switches'] }}"
+      when: hostvars[item].ansible_net_version is defined
+
+    - name: "Écrire le fichier JSON"
+      ansible.builtin.copy:
+        content: "{{ fw_statuses | default([]) | to_nice_json }}"
+        dest: "{{ out }}"
+        mode: "0644"

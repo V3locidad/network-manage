@@ -1,0 +1,22 @@
+# Reverse proxy TLS pour la gestion des switchs.
+# Certificat auto-signé explicite (certs/), servi quelle que soit l'IP/SNI
+# — nécessaire pour un accès par adresse IP (les clients n'envoient pas de SNI).
+{
+	auto_https off
+}
+
+# Interface web (HTTPS) — la webui gère son propre login.
+:443 {
+	tls /certs/cert.pem /certs/key.pem
+	encode gzip
+	reverse_proxy webui:8080
+}
+
+# Terminal WebSSH (HTTPS + authentification basique, il n'en a pas).
+:8443 {
+	tls /certs/cert.pem /certs/key.pem
+	basic_auth {
+		admin {$WEBSSH_HASH}
+	}
+	reverse_proxy webssh:8888
+}

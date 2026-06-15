@@ -1,0 +1,18 @@
+---
+# Implémentation VLAN pour Cisco Nexus (NX-OS)
+- name: "Cisco NX-OS — VLAN {{ vlan_id }} ({{ vlan_state }})"
+  cisco.nxos.nxos_vlans:
+    config:
+      - vlan_id: "{{ vlan_id | int }}"
+        name: "{{ vlan_name }}"
+    state: "{{ 'merged' if vlan_state == 'present' else 'deleted' }}"
+  check_mode: "{{ vlan_dry_run | bool }}"
+  register: nxos_vlan_result
+
+- name: "Cisco NX-OS — sauvegarde de la config (copy run start)"
+  cisco.nxos.nxos_config:
+    save_when: modified
+  when:
+    - vlan_save_config | bool
+    - not (vlan_dry_run | bool)
+    - nxos_vlan_result.changed

@@ -1,0 +1,81 @@
+---
+# Config standard + sécurité des ports — Aruba 2930F / AOS-Switch en SSH.
+# Porté depuis le playbook arubaoss_config (REST) vers cli_command (SSH).
+
+- name: "Lire la running-config (détection des ports d'accès)"
+  ansible.netcommon.cli_command:
+    command: show running-config
+  register: bl_rc
+  changed_when: false
+
+- name: "Détecter les ports untagged des VLAN à protéger"
+  ansible.builtin.set_fact:
+    bl_ports_list: "{{ bl_ports_list | default([]) + ([ports] if ports else []) }}"
+  vars:
+    # 1) isoler le bloc de config du VLAN (de 'vlan <id>' jusqu'au prochain 'vlan ')
+    vlan_block: >-
+      {{ bl_rc.stdout
+         | regex_search('(?ms)^vlan ' ~ item ~ '\b.*?(?=^vlan |\Z)') | default('', true) }}
+    # 2) extraire la ligne 'untagged ...' de ce bloc
+    ports: >-
+      {{ (vlan_block | regex_search('untagged ([0-9,\- ]+)', '\1')
+          | default([''], true) | first | regex_replace('\s', '')) }}
+  loop: "{{ protected_vlans | default([]) }}"
+
+- name: "Combiner les ports à protéger"
+  ansible.builtin.set_fact:
+    protected_ports: "{{ bl_ports_list | default([]) | select | join(',') }}"
+
+# ---- SIMULATION -----------------------------------------------------------
+- name: "SIMULATION — ce qui serait appliqué (rien n'est écrit)"
+  ansible.builtin.debug:
+    msg: >-
+      [DRY-RUN] {{ inventory_hostname }} — Services : NTP={{ ntp_server }},
+      Logging={{ logging_server }}, SNMP communauté="{{ snmp_community }}",
+      web-management OFF, authorized-managers="{{ authorized_manager }}".
+      Ports d'accès protégés (admin-edge + bpdu-protection + loop-protect) :
+      {{ protected_ports if protected_ports else 'aucun détecté' }}.
+  when: baseline_dry_run | bool
+
+# ---- RÉEL : services ------------------------------------------------------
+- name: "Appliquer la configuration standard (services)"
+  ansible.netcommon.cli_command:
+    command: "{{ item }}"
+  loop:
+    - configure terminal
+    - timesync ntp
+    - ntp unicast
+    - "ntp server {{ ntp_server }}"
+    - ntp enable
+    - "logging {{ logging_server }}"
+    - 'snmp-server community "{{ snmp_community }}" restricted'
+    - 'snmp-server contact "{{ snmp_contact }}" location "{{ snmp_location }}"'
+    - no web-management
+    - no web-management plaintext
+    - "ip authorized-managers {{ authorized_manager }} access manager"
+    - end
+  failed_when: false      # tolère les réglages déjà présents (idempotence)
+  when: not (baseline_dry_run | bool)
+
+# ---- RÉEL : sécurité des ports d'accès ------------------------------------
+- name: "Appliquer la sécurité des ports d'accès"
+  ansible.netcommon.cli_command:
+    command: "{{ item }}"
+  loop:
+    - configure terminal
+    - "spanning-tree {{ protected_ports }} admin-edge-port"
+    - "spanning-tree {{ protected_ports }} bpdu-protection"
+    - "loop-protect {{ protected_ports }}"
+    - loop-protect trap loop-detected
+    - "loop-protect disable-timer {{ loop_protect_disable_timer }}"
+    - end
+  when:
+    - not (baseline_dry_run | bool)
+    - protected_ports | length > 0
+
+- name: "Sauvegarde de la config (write memory)"
+  ansible.netcommon.cli_command:
+    command: write memory
+  when:
+    - not (baseline_dry_run | bool)
+    - baseline_save | bool

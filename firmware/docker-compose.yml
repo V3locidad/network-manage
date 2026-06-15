@@ -1,0 +1,17 @@
+---
+# Serveur TFTP pour servir les images firmware aux switchs.
+# Démarrage :  cd firmware && docker compose up -d --build
+# Les .swi se déposent dans firmware/images/ (servis à la racine TFTP).
+services:
+  tftp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: net-automation/tftp:latest
+    restart: unless-stopped
+    # network_mode host : TFTP utilise des ports dynamiques, mal gérés par le
+    # NAT Docker. En mode host, le serveur écoute directement sur l'IP du LXC
+    # (réseau de management), donc joignable par les switchs.
+    network_mode: host
+    volumes:
+      - ./images:/srv/tftp:ro

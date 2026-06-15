@@ -1,0 +1,18 @@
+---
+# Config standard du site (role baseline). Valeurs réelles dans le fichier
+# LOCAL inventory/group_vars/all/site.yml (git-ignoré). Ici : valeurs vides.
+ntp_server: ""
+logging_server: ""
+snmp_community: ""
+snmp_contact: ""
+snmp_location: ""
+# ⚠️ Le masque doit COUVRIR le réseau de management (sinon lockout du serveur !)
+authorized_manager: ""        # ex: "10.0.0.0 255.255.255.0"
+# VLAN dont les ports d'accès (untagged) reçoivent la sécurité STP/loop-protect.
+protected_vlans: []
+# Délai (s) de réactivation auto d'un port coupé par loop-protect. 0 = jamais
+# (réactivation manuelle obligatoire).
+loop_protect_disable_timer: 300
+
+baseline_dry_run: true        # simulation par défaut
+baseline_save: true           # write memory après application

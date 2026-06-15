@@ -1,0 +1,86 @@
+---
+# Activation/désactivation de port — Aruba 2930F / AOS-Switch en SSH.
+# Pilotage CLI via cli_command (cohérent avec le reste).
+
+# ---- PROTECTION ROCADE ----------------------------------------------------
+# Avant toute désactivation, on vérifie que le port n'est pas un lien
+# inter-switch (rocade). Deux garde-fous :
+#   1. liste manuelle 'uplink_ports' (host_vars du switch) — autoritaire ;
+#   2. détection automatique via LLDP : voisin annonçant la capacité "Bridge".
+
+- name: "Lire les voisins LLDP du port {{ port_id }}"
+  ansible.netcommon.cli_command:
+    command: "show lldp info remote-device {{ port_id }}"
+  register: lldp_info
+  failed_when: false
+  changed_when: false
+  when: port_state == 'disable'
+
+- name: "Analyser le voisin LLDP"
+  ansible.builtin.set_fact:
+    port_caps: "{{ lldp_info.stdout | default('') | lower }}"
+    port_neighbor: >-
+      {{ (lldp_info.stdout | default('')
+          | regex_search('(?i)SysName\s*:\s*(\S.*)', '\1')
+          | default(['(inconnu)'], true) | first | trim) }}
+  when: port_state == 'disable'
+
+- name: "Déterminer si le port est une rocade"
+  ansible.builtin.set_fact:
+    # Rocade = listé manuellement OU voisin annonçant "Bridge" SANS être une
+    # borne Wi-Fi / un téléphone (qui annoncent aussi Bridge mais ne sont pas
+    # des rocades).
+    port_is_rocade: >-
+      {{ ((port_id | string) in (uplink_ports | default([]) | map('string') | list))
+         or ('bridge' in port_caps
+             and 'wlan' not in port_caps
+             and 'access point' not in port_caps
+             and 'telephone' not in port_caps) }}
+  when: port_state == 'disable'
+
+- name: "INTERDIT — désactivation d'une rocade"
+  ansible.builtin.fail:
+    msg: >-
+      ⛔ Le port {{ port_id }} de {{ inventory_hostname }} est une ROCADE
+      (voisin : {{ port_neighbor }}). Désactivation refusée pour ne pas
+      couper le réseau. (Pour forcer : retire-le de uplink_ports.)
+  when:
+    - port_state == 'disable'
+    - port_is_rocade | bool
+
+# ---- APPLICATION (activation, ou désactivation d'un port non-rocade) ------
+- name: "ProCurve — {{ 'désactiver' if port_state == 'disable' else 'activer' }} le port {{ port_id }}"
+  ansible.netcommon.cli_command:
+    command: "{{ item }}"
+  loop:
+    - configure terminal
+    - "interface {{ port_id }} {{ port_state }}"
+    - end
+  register: port_apply
+  when: not (port_dry_run | bool)
+
+- name: "ProCurve — sauvegarde de la config (write memory)"
+  ansible.netcommon.cli_command:
+    command: write memory
+  when:
+    - port_save_config | bool
+    - not (port_dry_run | bool)
+
+# ---- SIMULATION -----------------------------------------------------------
+- name: "ProCurve — SIMULATION : lire l'état du port {{ port_id }}"
+  ansible.netcommon.cli_command:
+    command: "show interfaces brief {{ port_id }}"
+  register: port_dry
+  failed_when: false
+  changed_when: false
+  when: port_dry_run | bool
+
+- name: "ProCurve — SIMULATION : aucun changement appliqué"
+  ansible.builtin.debug:
+    msg: >-
+      [DRY-RUN] Sur {{ inventory_hostname }}, le port {{ port_id }} serait
+      « {{ port_state }} »
+      {{ '— voisin LLDP : ' ~ port_neighbor if (port_state == 'disable') else '' }}.
+      Rien n'a été écrit. État actuel :
+      {{ port_dry.stdout | default('(non lu)') }}
+  when: port_dry_run | bool

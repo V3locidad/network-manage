@@ -1,0 +1,4 @@
+---
+# Rôle audit — vérifie (lecture seule) la conformité au standard du site.
+- name: "Aiguillage vers l'implémentation {{ switch_vendor }}"
+  ansible.builtin.include_tasks: "{{ switch_vendor }}.yml"

@@ -1,0 +1,6 @@
+---
+# Paramètres du rôle port — surchargés par le playbook / l'interface.
+port_id: ""             # ex: "5"  ou  "1-4"  (obligatoire)
+port_state: disable     # disable | enable
+port_dry_run: true      # simulation par défaut (sécurité)
+port_save_config: true  # write memory après modification

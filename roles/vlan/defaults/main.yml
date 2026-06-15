@@ -1,0 +1,12 @@
+---
+# Paramètres du rôle vlan — surchargés par le playbook / le formulaire de l'interface.
+
+vlan_id: ""            # ex: 30        (obligatoire)
+vlan_name: ""          # ex: "VOIP"   (obligatoire)
+vlan_state: present    # present | absent
+
+# Si true : ne fait que simuler (équivalent --check). Exposé dans le survey.
+vlan_dry_run: false
+
+# Sauvegarder la config en NVRAM après modification (write memory).
+vlan_save_config: true

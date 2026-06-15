@@ -1,0 +1,11 @@
+---
+# Exemple de variables propres à UN switch.
+# Copie ce fichier en "<NOM-DU-SWITCH>.yml" (sans .example) pour l'activer.
+#
+# uplink_ports : liste des ports ROCADE (liens inter-switch) à NE JAMAIS
+# désactiver. Garde-fou manuel, en complément de la détection LLDP automatique.
+# Indispensable si LLDP est désactivé sur certains liens.
+uplink_ports:
+  - "49"
+  - "50"
+  - "Trk1"

@@ -1,0 +1,41 @@
+---
+# ============================================================================
+# Collecte la liste des VLANs du parc et écrit un JSON consommé par le menu
+# déroulant de l'interface (assignation de port à un VLAN d'accès).
+# Sortie : {{ backup_dir }}/vlans.json   (lecture seule sur les switchs)
+# ============================================================================
+
+- name: "Collecte des VLANs"
+  hosts: "{{ target | default('procurve') }}"
+  gather_facts: false
+  vars:
+    target: procurve
+  tasks:
+    - name: "Lire 'show vlans'"
+      ansible.netcommon.cli_command:
+        command: show vlans
+      register: sv
+      changed_when: false
+
+    - name: "Extraire les couples (id, nom)"
+      ansible.builtin.set_fact:
+        host_vlans: "{{ sv.stdout | regex_findall('(?m)^\\s*(\\d+)\\s+(.+?)\\s*\\|') }}"
+
+- name: "Consolidation du JSON"
+  hosts: localhost
+  gather_facts: false
+  vars:
+    out: "{{ backup_dir }}/vlans.json"
+  tasks:
+    - name: "Construire la table id -> nom (fusion de tous les switchs)"
+      ansible.builtin.set_fact:
+        vlan_map: "{{ vlan_map | default({}) | combine({ item.0: (item.1 | trim) }) }}"
+      loop: "{{ groups['switches']
+                | map('extract', hostvars, 'host_vlans')
+                | select('defined') | list | flatten(levels=1) }}"
+
+    - name: "Écrire le JSON (liste {id, name})"
+      ansible.builtin.copy:
+        content: "{{ (vlan_map | default({}) | dict2items(key_name='id', value_name='name')) | to_nice_json }}"
+        dest: "{{ out }}"
+        mode: "0644"

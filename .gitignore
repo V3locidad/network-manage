@@ -1,0 +1,46 @@
+# Secrets — ne JAMAIS committer en clair
+inventory/group_vars/all/vault.yml
+inventory/group_vars/all/site.yml
+*.vault
+.vault_pass
+vault_pass.txt
+
+# Logs et artefacts d'exécution
+ansible.log
+*.retry
+
+# Sauvegardes de config (volumineuses, géré à part / Git LFS si besoin)
+files/backups/*.cfg
+files/backups/*.txt
+
+# Python / venv
+.venv/
+__pycache__/
+*.pyc
+
+# Éditeurs
+.vscode/
+.idea/
+*.swp
+
+# Interface web maison
+webui/.env
+
+# Reverse proxy
+proxy/.env
+
+# Identifiants switchs réels (le .example reste versionné)
+secret/switch_creds.yml
+
+# Données spécifiques au site (le dépôt reste générique/réutilisable)
+inventory/hosts.yml
+inventory/host_vars/*.yml
+!inventory/host_vars/*.example
+backups/
+
+# Images firmware (gros binaires, ne pas versionner)
+firmware/images/*
+!firmware/images/.gitkeep
+
+# Certificats TLS générés localement
+proxy/certs/

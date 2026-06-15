@@ -1,0 +1,40 @@
+---
+# ============================================================================
+# MODÈLE d'inventaire — à copier en inventory/hosts.yml et adapter par site.
+#
+#   cp inventory/hosts.example.yml inventory/hosts.yml
+#
+# Range chaque switch dans le bon groupe : c'est le groupe qui détermine
+# le module Ansible et la méthode de connexion (cf. group_vars/).
+# ============================================================================
+
+all:
+  children:
+
+    # ---- Cisco IOS / IOS-XE -------------------------------------------------
+    cisco_ios:
+      hosts: {}
+        # sw-cisco-01: { ansible_host: 10.0.0.11 }
+
+    # ---- Cisco Nexus (NX-OS) ------------------------------------------------
+    cisco_nxos:
+      hosts: {}
+
+    # ---- Aruba CX (REST API) ------------------------------------------------
+    aruba_cx:
+      hosts: {}
+        # sw-arubacx-01: { ansible_host: 10.0.0.31 }
+
+    # ---- Aruba 2930F / ArubaOS-Switch / ProCurve (SSH) ---------------------
+    procurve:
+      hosts:
+        sw-acces-01: { ansible_host: 10.0.0.1 }
+        sw-acces-02: { ansible_host: 10.0.0.2 }
+
+    # ---- Méta-groupe : tout le parc ----------------------------------------
+    switches:
+      children:
+        cisco_ios:
+        cisco_nxos:
+        aruba_cx:
+        procurve:

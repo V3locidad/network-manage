@@ -1,0 +1,18 @@
+---
+# Rôle baseline — applique la config standard + sécurité des ports d'accès.
+
+- name: "Validation des paramètres (en mode réel)"
+  ansible.builtin.assert:
+    that:
+      - ntp_server | length > 0
+      - logging_server | length > 0
+      - snmp_community | length > 0
+      - authorized_manager | length > 0
+    fail_msg: >-
+      Renseigne ntp_server / logging_server / snmp_community / authorized_manager
+      dans inventory/group_vars/all/site.yml avant d'appliquer pour de vrai.
+    quiet: true
+  when: not (baseline_dry_run | bool)
+
+- name: "Aiguillage vers l'implémentation {{ switch_vendor }}"
+  ansible.builtin.include_tasks: "{{ switch_vendor }}.yml"

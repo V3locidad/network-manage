@@ -1,0 +1,42 @@
+---
+# Mise à jour firmware Cisco IOS / IOS-XE
+- name: "Copier l'image via SCP sur le switch"
+  cisco.ios.ios_command:
+    commands:
+      - "copy {{ firmware_source_url }} flash:{{ firmware_image }}"
+  when: not (firmware_check | bool)
+
+- name: "Vérifier l'intégrité de l'image (MD5)"
+  cisco.ios.ios_command:
+    commands:
+      - "verify /md5 flash:{{ firmware_image }} {{ firmware_md5 }}"
+  register: md5_check
+  failed_when: "'Verified' not in md5_check.stdout[0]"
+  when:
+    - not (firmware_check | bool)
+    - firmware_md5 | default('') | length > 0
+
+- name: "Définir l'image de boot"
+  cisco.ios.ios_config:
+    lines:
+      - "no boot system"
+      - "boot system flash:{{ firmware_image }}"
+    save_when: always
+  when: not (firmware_check | bool)
+
+- name: "Reboot du switch"
+  cisco.ios.ios_command:
+    commands:
+      - command: "reload"
+        prompt: ['confirm']
+        answer: 'y'
+  when: not (firmware_check | bool)
+
+- name: "Attendre le retour du switch"
+  ansible.builtin.wait_for:
+    host: "{{ ansible_host }}"
+    port: 22
+    delay: 120
+    timeout: 900
+  delegate_to: localhost
+  when: not (firmware_check | bool)
