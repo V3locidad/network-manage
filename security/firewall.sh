@@ -9,13 +9,25 @@
 # ============================================================================
 set -euo pipefail
 
-# ====== À PERSONNALISER =====================================================
+# ====== CONFIGURATION =======================================================
+# Les valeurs réelles sont lues depuis security/firewall.conf (généré par
+# install.sh, hors dépôt Git). Les valeurs ci-dessous ne servent que de
+# repli si firewall.conf est absent — ÉDITE-LES sinon tu te coupes l'accès.
 ADMIN_NETS=(
   "10.0.0.240/32"   # <-- REMPLACE par ton/tes poste(s) admin
   "10.8.0.0/24"     # <-- REMPLACE par le subnet de ton VPN
 )
 SWITCH_NET="10.0.0.0/24"   # <-- REMPLACE par le réseau de management des switchs (TFTP)
 RESTRICT_SSH=false             # true = limiter aussi le SSH du LXC aux ADMIN_NETS
+
+CONF="$(dirname "$0")/firewall.conf"
+if [ -f "$CONF" ]; then
+  # firewall.conf : ADMIN_NETS="ip1 ip2 ...", SWITCH_NET="...", RESTRICT_SSH=true/false
+  # shellcheck disable=SC1090
+  . "$CONF"
+  # ADMIN_NETS est une chaîne séparée par des espaces -> tableau.
+  read -ra ADMIN_NETS <<< "${ADMIN_NETS}"
+fi
 # ============================================================================
 
 IPT=iptables

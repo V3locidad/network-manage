@@ -44,3 +44,6 @@ firmware/images/*
 
 # Certificats TLS générés localement
 proxy/certs/
+
+# Configuration pare-feu spécifique au site (IP d'admin réelles)
+security/firewall.conf

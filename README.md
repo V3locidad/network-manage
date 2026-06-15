@@ -15,6 +15,23 @@ Technicien ─▶ Interface web (Flask) ─▶ Ansible (playbooks/roles) ─▶ 
 > Ce dépôt est générique ; les données propres à un site (switchs,
 > identifiants, rocades) restent locales et ne sont jamais poussées.
 
+## Installation express (LXC/VM Debian vierge)
+
+Un seul script fait **tout** : installe Docker, récupère le projet, pose les
+questions (réseaux autorisés pour le pare-feu, LibreNMS, compte admin, accès
+switchs…), génère l'inventaire avec **auto-détection cisco/aruba/procurve**,
+construit et démarre la stack (interface + terminal + HTTPS), crée le premier
+compte et applique le pare-feu.
+
+```bash
+# en root, sur le LXC Debian (privilégié + nesting=1) :
+git clone https://github.com/V3locidad/network-manage.git /opt/net-automation
+bash /opt/net-automation/install.sh
+```
+
+> Prérequis Proxmox : conteneur **privilégié** avec `features: nesting=1`
+> (sinon Docker ne démarre pas dans le LXC).
+
 ## Ce qui est livré
 
 | Élément | Rôle |
