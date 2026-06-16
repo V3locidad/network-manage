@@ -10,9 +10,8 @@ logging_server: "10.0.0.251"
 
 snmp_community: "public"
 snmp_contact: "admin@example.com"
-# Localisation SNMP : propre à CHAQUE switch -> laissée VIDE par défaut, sinon
-# l'appliquer à tout le parc écraserait la localisation de chaque switch.
-snmp_location: ""
+# (Pas de snmp_location : la localisation est propre à chaque switch et n'est
+#  pas gérée par la config standard, pour ne pas uniformiser tout le parc.)
 
 # ⚠️ Le masque doit COUVRIR le réseau de management, sinon le serveur Ansible
 # se fait verrouiller l'accès. Ex : "10.0.0.0 255.255.255.0" = tout le /24.

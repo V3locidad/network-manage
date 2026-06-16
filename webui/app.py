@@ -205,6 +205,9 @@ def load_baseline():
     if not data.get("snmp_communities") and data.get("snmp_community"):
         data["snmp_communities"] = [{"name": data["snmp_community"],
                                      "access": "restricted"}]
+    # Localisation SNMP retirée de l'UI : propre à chaque switch, jamais gérée ici
+    # (on neutralise toute valeur héritée d'un ancien baseline.json/site.yml).
+    data["snmp_location"] = ""
     return data
 
 
@@ -565,8 +568,7 @@ BASELINE_TOGGLES = ("baseline_ntp", "baseline_logging", "baseline_snmp",
                     "baseline_banner",
                     "baseline_spanning_tree", "baseline_loop_protect")
 BASELINE_TEXT = ("ntp_server", "logging_server", "snmp_community",
-                 "snmp_contact", "snmp_location", "authorized_manager",
-                 "banner_motd")
+                 "snmp_contact", "authorized_manager", "banner_motd")
 
 
 @app.route("/settings", methods=["GET", "POST"])
