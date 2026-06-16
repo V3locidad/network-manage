@@ -170,9 +170,12 @@ BASELINE_DEFAULTS = {
     "snmp_communities": [], "snmp_remove_communities": [],
     "authorized_manager": "", "protected_vlans": [],
     "loop_protect_disable_timer": 300,
+    # Bannière MOTD — propre à chaque site, reste local (jamais sur GitHub).
+    "banner_motd": "",
     # Interrupteurs : appliquer ou non chaque bloc.
     "baseline_ntp": True, "baseline_logging": True, "baseline_snmp": True,
     "baseline_web_mgmt_off": True, "baseline_authmgr": True,
+    "baseline_banner": True,
     "baseline_spanning_tree": True, "baseline_loop_protect": True,
 }
 _baseline_lock = threading.Lock()
@@ -557,9 +560,11 @@ def history():
 
 BASELINE_TOGGLES = ("baseline_ntp", "baseline_logging", "baseline_snmp",
                     "baseline_web_mgmt_off", "baseline_authmgr",
+                    "baseline_banner",
                     "baseline_spanning_tree", "baseline_loop_protect")
 BASELINE_TEXT = ("ntp_server", "logging_server", "snmp_community",
-                 "snmp_contact", "snmp_location", "authorized_manager")
+                 "snmp_contact", "snmp_location", "authorized_manager",
+                 "banner_motd")
 
 
 @app.route("/settings", methods=["GET", "POST"])

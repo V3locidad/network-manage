@@ -57,6 +57,8 @@
             if (baseline_web_mgmt_off | bool) else [])
          + (['ip authorized-managers ' ~ authorized_manager ~ ' access manager']
             if (baseline_authmgr | bool) and authorized_manager else [])
+         + (['banner motd "' ~ banner_motd ~ '"']
+            if (baseline_banner | bool) and banner_motd else [])
          + ['end'] }}
 
 - name: "Construire les commandes de sécurité des ports"

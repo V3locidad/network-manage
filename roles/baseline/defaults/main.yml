@@ -22,10 +22,13 @@ baseline_save: true           # write memory après application
 
 # Interrupteurs (appliquer ou non chaque bloc) — pilotés par la page « Config
 # standard » de l'interface. Par défaut tout est appliqué (comportement inchangé).
+# Bannière MOTD — propre au site (jamais versionnée).
+banner_motd: ""
 baseline_ntp: true
 baseline_logging: true
 baseline_snmp: true
 baseline_web_mgmt_off: true
 baseline_authmgr: true
+baseline_banner: true
 baseline_spanning_tree: true
 baseline_loop_protect: true

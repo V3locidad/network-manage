@@ -59,6 +59,10 @@
       <label>ip authorized-managers</label>
       <input type="text" name="authorized_manager" value="{{ cfg.authorized_manager }}" placeholder="10.0.0.0 255.255.255.0">
       <p class="warn">Le masque doit couvrir le réseau de gestion, sinon le serveur perd l'accès aux switchs.</p>
+
+      <label class="check"><input type="checkbox" name="baseline_banner" {% if cfg.baseline_banner %}checked{% endif %}> Bannière de connexion (MOTD)</label>
+      <input type="text" name="banner_motd" value="{{ cfg.banner_motd }}" placeholder="Accès réservé — XXXX">
+      <p class="muted" style="font-size:12px;">Propre à ton site — stockée localement, jamais publiée sur GitHub.</p>
     </div>
 
     <div class="card">
