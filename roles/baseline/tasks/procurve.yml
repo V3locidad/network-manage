@@ -34,13 +34,28 @@
     - (snmp_communities | default([]) | length) == 0
     - (snmp_community | default('') | length) > 0
 
-- name: "Construire les commandes SNMP (retraits puis ajouts)"
+# Jinja ne gère pas les list comprehensions -> on construit par accumulation.
+- name: "SNMP : initialiser la liste"
+  ansible.builtin.set_fact:
+    bl_snmp_cmds: []
+
+- name: "SNMP : retraits de communautés"
   ansible.builtin.set_fact:
     bl_snmp_cmds: >-
-      {{ [ 'no snmp-server community "' ~ rc ~ '"'
-           for rc in (snmp_remove_communities | default([])) ]
-         + [ 'snmp-server community "' ~ c.name ~ '" ' ~ (c.access | default('restricted'))
-             for c in (snmp_communities | default([])) ]
+      {{ bl_snmp_cmds + ['no snmp-server community "' ~ item ~ '"'] }}
+  loop: "{{ snmp_remove_communities | default([]) }}"
+
+- name: "SNMP : ajouts de communautés"
+  ansible.builtin.set_fact:
+    bl_snmp_cmds: >-
+      {{ bl_snmp_cmds
+         + ['snmp-server community "' ~ item.name ~ '" ' ~ (item.access | default('restricted'))] }}
+  loop: "{{ snmp_communities | default([]) }}"
+
+- name: "SNMP : contact / localisation"
+  ansible.builtin.set_fact:
+    bl_snmp_cmds: >-
+      {{ bl_snmp_cmds
          + (['snmp-server contact "' ~ snmp_contact ~ '" location "' ~ snmp_location ~ '"']
             if (snmp_contact and snmp_location)
             else (['snmp-server contact "' ~ snmp_contact ~ '"'] if snmp_contact
