@@ -669,7 +669,9 @@ def parse_members(*texts):
 @login_required
 def trunks_dashboard():
     data = _read_json("/backups/trunks.json", [])
-    ip2name = {h["ip"]: h["name"] for h in load_switch_hosts() if h.get("ip")}
+    hosts = load_switch_hosts()
+    ip2name = {h["ip"]: h["name"] for h in hosts if h.get("ip")}
+    inv_names = {h["name"] for h in hosts}
     rows = []
     for d in data:
         in_stack, members = parse_members(d.get("stacking", ""), d.get("vsf", ""))
@@ -686,20 +688,17 @@ def trunks_dashboard():
             for p in t["ports"]:
                 port2trk[p] = t["name"]
 
-        # Tous les voisins qui sont des SWITCHS (trunk ou pas).
+        # Uniquement les voisins qui sont des switchs DE L'INVENTAIRE.
         neighbors = []
         for port, c in cdp.items():
+            # Résolution du nom : IP CDP, sinon SysName LLDP (ports de trunk).
             name = ip2name.get(c.get("ip", ""), "")
-            is_switch = ("switch" in c.get("capability", "").lower()) or bool(name)
-            if not is_switch:
+            if not name and lmap.get(port, {}).get("neighbor", "") in inv_names:
+                name = lmap[port]["neighbor"]
+            # On ne garde que les switchs connus, et pas les liens internes (stack).
+            if name not in inv_names or name == d.get("host"):
                 continue
-            if not name:
-                name = c.get("device_id", "")
-            rport = c.get("rport", "")
-            if not name or _looks_like_mac(name):   # repli LLDP
-                lf = lmap.get(port, {})
-                name = lf.get("neighbor", "") or name
-                rport = rport or lf.get("rport", "")
+            rport = c.get("rport", "") or lmap.get(port, {}).get("rport", "")
             if _looks_like_mac(rport):
                 rport = ""
             neighbors.append({"port": port, "name": name, "rport": rport,
