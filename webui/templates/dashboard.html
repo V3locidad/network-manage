@@ -1,6 +1,13 @@
 {% extends "base.html" %}
 {% block content %}
-<h2 style="margin:0 0 18px;">Tableau de bord</h2>
+<div style="display:flex;justify-content:space-between;align-items:center;margin:0 0 18px;">
+  <h2 style="margin:0;">Tableau de bord</h2>
+  {% if librenms_configured %}
+  <form method="post" action="{{ url_for('sync_librenms') }}" style="margin:0;">
+    <button type="submit" style="width:auto;margin:0;background:#334155;font-size:13px;">⟳ Synchroniser LibreNMS</button>
+  </form>
+  {% endif %}
+</div>
 
 <div class="tiles">
   <a class="tile" href="{{ url_for('terminal') }}">

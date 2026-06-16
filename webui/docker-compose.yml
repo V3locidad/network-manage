@@ -25,9 +25,14 @@ services:
       # Inoffensif tant que le fichier n'est pas chiffré.
       ANSIBLE_VAULT_PASSWORD: ${ANSIBLE_VAULT_PASSWORD:-}
       ANSIBLE_VAULT_PASSWORD_FILE: /project/secret/vault_pass.sh
+      # Synchro de l'inventaire depuis LibreNMS (bouton dans l'UI).
+      LNMS_URL: ${LNMS_URL:-}
+      LNMS_TOKEN: ${LNMS_TOKEN:-}
     volumes:
       # Le projet Ansible (lecture seule) + les sauvegardes (écriture).
       - /opt/net-automation:/project:ro
+      # Inventaire en écriture : la synchro LibreNMS régénère hosts.yml.
+      - /opt/net-automation/inventory:/project/inventory:rw
       - /opt/net-automation/backups:/backups
       # Identifiants des switchs (ansible_user / ansible_password), hors dépôt.
       - /opt/net-automation/secret/switch_creds.yml:/secret/switch_creds.yml:ro

@@ -67,8 +67,10 @@ app.secret_key = os.environ.get("WEBUI_SECRET", "dev-secret-change-me")
 
 @app.context_processor
 def inject_mode():
-    """Expose aux templates si le mode comptes individuels est actif."""
-    return {"accounts_mode": bool(load_users())}
+    """Expose aux templates : mode comptes + LibreNMS configuré."""
+    return {"accounts_mode": bool(load_users()),
+            "librenms_configured": bool(os.environ.get("LNMS_URL")
+                                        and os.environ.get("LNMS_TOKEN"))}
 
 
 @app.after_request
@@ -561,6 +563,21 @@ def dashboard():
 def history():
     return render_template("history.html", history=load_history(),
                            accounts=bool(load_users()))
+
+
+@app.route("/sync_librenms", methods=["POST"])
+@login_required
+def sync_librenms():
+    """Régénère inventory/hosts.yml depuis LibreNMS (auto-détection vendor)."""
+    run_id = uuid.uuid4().hex
+    RUNS[run_id] = {"q": queue.Queue(), "done": False}
+    cmd = ["python", "inventory/from_librenms.py", "inventory/hosts.yml"]
+    log_history_start(run_id, session.get("who"), client_ip(),
+                      "Synchroniser LibreNMS", "inventaire", "")
+    threading.Thread(target=run_job, args=(run_id, cmd), daemon=True).start()
+    return render_template("run.html", run_id=run_id,
+                           action="Synchroniser l'inventaire (LibreNMS)",
+                           back=url_for("dashboard"), auto_redirect=False)
 
 
 BASELINE_TOGGLES = ("baseline_ntp", "baseline_logging", "baseline_snmp",
