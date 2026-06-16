@@ -4,29 +4,48 @@
 # pour qu'il se propage à tout le réseau.
 
 # ---- Détection des rocades (pour propager le VLAN partout) ----------------
-- name: "Lire les voisins LLDP (détection des rocades)"
+# Méthode fiable : on identifie les ports dont le voisin LLDP annonce la
+# capacité « Bridge » (= un switch), comme le rôle port. Indépendant des noms
+# (le tableau résumé tronque souvent le SysName).
+- name: "Lister les ports ayant un voisin LLDP"
   ansible.netcommon.cli_command:
     command: show lldp info remote-device
   register: vlan_lldp
   changed_when: false
   when: vlan_state == 'present'
 
-- name: "Extraire les couples (port, voisin) depuis LLDP"
+- name: "Extraire les ports locaux avec voisin"
   ansible.builtin.set_fact:
-    vlan_lldp_pairs: >-
+    vlan_lldp_ports: >-
       {{ vlan_lldp.stdout | default('')
-         | regex_findall('(?m)^\s*([0-9A-Za-z][0-9A-Za-z/]*)\s+\|.*\s(\S+)\s*$') }}
+         | regex_findall('(?m)^\s*(\d[0-9A-Za-z/]*)\s*\|') }}
   when: vlan_state == 'present'
 
-- name: "Ports rocade = voisin présent dans l'inventaire (= un autre switch)"
-  ansible.builtin.set_fact:
-    vlan_rocade_ports: "{{ (vlan_rocade_ports | default([])) + [item[0]] }}"
-  loop: "{{ vlan_lldp_pairs | default([]) }}"
+- name: "Lire le détail LLDP de chaque port (capacités du voisin)"
+  ansible.netcommon.cli_command:
+    command: "show lldp info remote-device {{ item }}"
+  loop: "{{ vlan_lldp_ports | default([]) }}"
+  register: vlan_lldp_details
+  changed_when: false
+  failed_when: false
   when:
     - vlan_state == 'present'
-    - item[1] in groups['all']
+    - (vlan_lldp_ports | default([])) | length > 0
 
-- name: "Liste finale des ports à tagger (LLDP + uplink_ports manuels)"
+- name: "Rocades = voisin « Bridge » (hors borne Wi-Fi / téléphone)"
+  ansible.builtin.set_fact:
+    vlan_rocade_ports: "{{ (vlan_rocade_ports | default([])) + [item.item] }}"
+  loop: "{{ vlan_lldp_details.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item | default('') }}"
+  when:
+    - vlan_state == 'present'
+    - "'bridge' in (item.stdout | default('') | lower)"
+    - "'wlan' not in (item.stdout | default('') | lower)"
+    - "'access point' not in (item.stdout | default('') | lower)"
+    - "'telephone' not in (item.stdout | default('') | lower)"
+
+- name: "Liste finale des ports à tagger (rocades LLDP + uplink_ports manuels)"
   ansible.builtin.set_fact:
     vlan_tag_ports: >-
       {{ ((vlan_rocade_ports | default([])) + (uplink_ports | default([])))
