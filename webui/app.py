@@ -630,12 +630,19 @@ def parse_cdp(text):
         did = re.search(r"(?im)^\s*Device ID\s*:\s*(.+?)\s*$", blk)
         ip = re.search(r"(?im)^\s*Address\s*:\s*(\d{1,3}(?:\.\d{1,3}){3})", blk)
         rport = re.search(r"(?im)^\s*Device Port\s*:\s*(.+?)\s*$", blk)
+        cap = re.search(r"(?im)^\s*Capability\s*:\s*(.+?)\s*$", blk)
         out[port.group(1)] = {
             "device_id": (did.group(1).strip() if did else ""),
             "ip": (ip.group(1) if ip else ""),
             "rport": (rport.group(1).strip() if rport else ""),
+            "capability": (cap.group(1).strip() if cap else ""),
         }
     return out
+
+
+def _portkey(p):
+    """Tri naturel des ports (12 après 4, 4/46 groupés)."""
+    return [int(x) if x.isdigit() else x for x in re.split(r"(\d+)", p or "") if x]
 
 
 def parse_members(*texts):
@@ -672,25 +679,37 @@ def trunks_dashboard():
         for e in d.get("lldp", []):
             nm, rp = parse_lldp_detail(e.get("out", ""))
             lmap[str(e.get("port"))] = {"neighbor": nm, "rport": rp}
+        # Quel port appartient à quel trunk ?
         trunks = parse_trunks(d.get("trunks", ""))
+        port2trk = {}
         for t in trunks:
-            links = []
             for p in t["ports"]:
-                c = cdp.get(p, {})
-                # CDP : résout le switch par son IP dans l'inventaire si possible.
-                name = ip2name.get(c.get("ip", ""), "") or c.get("device_id", "")
-                rport = c.get("rport", "")
-                # Repli LLDP si CDP n'a pas de nom exploitable (MAC / vide).
-                if not name or _looks_like_mac(name):
-                    lf = lmap.get(p, {})
-                    name = lf.get("neighbor", "") or name
-                    rport = lf.get("rport", "") or rport
-                if _looks_like_mac(rport):
-                    rport = ""
-                links.append({"port": p, "neighbor": name, "rport": rport})
-            t["links"] = links
+                port2trk[p] = t["name"]
+
+        # Tous les voisins qui sont des SWITCHS (trunk ou pas).
+        neighbors = []
+        for port, c in cdp.items():
+            name = ip2name.get(c.get("ip", ""), "")
+            is_switch = ("switch" in c.get("capability", "").lower()) or bool(name)
+            if not is_switch:
+                continue
+            if not name:
+                name = c.get("device_id", "")
+            rport = c.get("rport", "")
+            if not name or _looks_like_mac(name):   # repli LLDP
+                lf = lmap.get(port, {})
+                name = lf.get("neighbor", "") or name
+                rport = rport or lf.get("rport", "")
+            if _looks_like_mac(rport):
+                rport = ""
+            neighbors.append({"port": port, "name": name, "rport": rport,
+                              "trk": port2trk.get(port, "")})
+        neighbors.sort(key=lambda n: _portkey(n["port"]))
+
         rows.append({"host": d.get("host", "?"), "ip": d.get("ip", ""),
-                     "in_stack": in_stack, "members": members, "trunks": trunks})
+                     "in_stack": in_stack, "members": members,
+                     "neighbors": neighbors,
+                     "trunks": [t["name"] for t in trunks]})
     rows.sort(key=lambda r: r["host"])
     return render_template("trunks.html", rows=rows, scanned=bool(data))
 

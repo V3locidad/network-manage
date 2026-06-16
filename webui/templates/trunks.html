@@ -25,7 +25,7 @@
   </style>
   <div class="card">
     <table class="tk">
-      <tr><th>Switch</th><th>IP</th><th>Stack</th><th>Membres</th><th>Trunks (voisin en face)</th></tr>
+      <tr><th>Switch</th><th>IP</th><th>Stack</th><th>Membres</th><th>Voisins (switchs en face)</th></tr>
       {% for r in rows %}
       <tr>
         <td style="white-space:nowrap;">{{ r.host }}</td>
@@ -44,14 +44,11 @@
           {% else %}<span class="muted">—</span>{% endif %}
         </td>
         <td>
-          {% if r.trunks %}
-            {% for t in r.trunks %}
-            <div class="trk">
-              <span class="trk-name">{{ t.name }}</span>
-              {% for l in t.links %}
-              <div class="link"><b>{{ l.port }}</b> →
-                {{ l.neighbor if l.neighbor else '(inconnu)' }}{% if l.rport %} <b>{{ l.rport }}</b>{% endif %}</div>
-              {% endfor %}
+          {% if r.neighbors %}
+            {% for n in r.neighbors %}
+            <div class="link">
+              <b>{{ n.port }}</b> → {{ n.name if n.name else '(inconnu)' }}{% if n.rport %} <b>{{ n.rport }}</b>{% endif %}
+              {% if n.trk %}<span class="badge b-run" style="margin-left:4px;">{{ n.trk }}</span>{% endif %}
             </div>
             {% endfor %}
           {% else %}<span class="muted">aucun</span>{% endif %}
