@@ -10,7 +10,9 @@
 </div>
 
 {% if hosts %}
-<table style="width:100%;border-collapse:collapse;font-size:14px;">
+<input type="text" id="switch-search" placeholder="🔎 Rechercher un switch (nom ou IP)…"
+       autofocus style="margin-bottom:12px;">
+<table id="switch-table" style="width:100%;border-collapse:collapse;font-size:14px;">
   <thead>
     <tr style="text-align:left;color:#94a3b8;border-bottom:1px solid #334155;">
       <th style="padding:8px;">Switch</th>
@@ -33,6 +35,24 @@
     {% endfor %}
   </tbody>
 </table>
+<p id="no-match" class="muted" style="display:none;margin-top:12px;">Aucun switch ne correspond.</p>
+<script>
+  (function () {
+    var input = document.getElementById('switch-search');
+    var rows = Array.from(document.querySelectorAll('#switch-table tbody tr'));
+    var none = document.getElementById('no-match');
+    input.addEventListener('input', function () {
+      var q = input.value.trim().toLowerCase();
+      var shown = 0;
+      rows.forEach(function (tr) {
+        var match = tr.textContent.toLowerCase().indexOf(q) !== -1;
+        tr.style.display = match ? '' : 'none';
+        if (match) shown++;
+      });
+      none.style.display = shown ? 'none' : 'block';
+    });
+  })();
+</script>
 {% else %}
 <p style="color:#94a3b8;">Aucun switch dans l'inventaire.</p>
 {% endif %}
