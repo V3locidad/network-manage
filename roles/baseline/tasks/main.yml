@@ -3,14 +3,19 @@
 
 - name: "Validation des paramètres (en mode réel)"
   ansible.builtin.assert:
+    # On ne valide QUE les blocs activés (interrupteurs de la page Config standard).
     that:
-      - ntp_server | length > 0
-      - logging_server | length > 0
-      - snmp_community | length > 0
-      - authorized_manager | length > 0
+      - (not (baseline_ntp | bool)) or (ntp_server | length > 0)
+      - (not (baseline_logging | bool)) or (logging_server | length > 0)
+      - (not (baseline_authmgr | bool)) or (authorized_manager | length > 0)
+      - >-
+        (not (baseline_snmp | bool))
+        or ((snmp_communities | default([]) | length > 0)
+            or (snmp_remove_communities | default([]) | length > 0)
+            or (snmp_contact | length > 0))
     fail_msg: >-
-      Renseigne ntp_server / logging_server / snmp_community / authorized_manager
-      dans inventory/group_vars/all/site.yml avant d'appliquer pour de vrai.
+      Un bloc activé manque de paramètre : vérifie NTP / logging / SNMP /
+      authorized-managers dans la page « Config standard » (ou décoche le bloc).
     quiet: true
   when: not (baseline_dry_run | bool)
 
