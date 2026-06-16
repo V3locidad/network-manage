@@ -14,6 +14,9 @@ services:
     image: net-automation/webssh:latest
     container_name: webssh
     restart: unless-stopped
+    # --timeout=30 : les vieux serveurs SSH (group-exchange lent) dépassent le
+    # défaut de 3 s -> « No existing session ». 30 s laisse le handshake finir.
+    command: ["wssh", "--address=0.0.0.0", "--port=8888", "--timeout=30"]
     # Plus de port publié : accessible UNIQUEMENT via Caddy (TLS + auth).
     expose:
       - "8888"

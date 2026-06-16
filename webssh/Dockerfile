@@ -11,4 +11,6 @@ ENV PYTHONPATH=/opt/sshcompat
 
 EXPOSE 8888
 
-CMD ["wssh", "--address=0.0.0.0", "--port=8888"]
+# --timeout=30 : laisse le handshake des vieux serveurs SSH (group-exchange
+# lent) se terminer ; le défaut de 3 s provoque « No existing session ».
+CMD ["wssh", "--address=0.0.0.0", "--port=8888", "--timeout=30"]
