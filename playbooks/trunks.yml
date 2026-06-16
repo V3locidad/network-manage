@@ -35,6 +35,13 @@
       failed_when: false
       changed_when: false
 
+    - name: "Voisins CDP (détail : IP + port en face en une commande)"
+      ansible.netcommon.cli_command:
+        command: show cdp neighbors detail
+      register: tk_cdp
+      failed_when: false
+      changed_when: false
+
     - name: "Ports membres des trunks"
       ansible.builtin.set_fact:
         tk_trunk_ports: >-
@@ -72,6 +79,7 @@
           stacking: "{{ tk_stack.stdout | default('') }}"
           vsf: "{{ tk_vsf.stdout | default('') }}"
           trunks: "{{ tk_trunk.stdout | default('') }}"
+          cdp: "{{ tk_cdp.stdout | default('') }}"
           lldp: "{{ tk_lldp_list | default([]) }}"
 
 - name: "Consolidation du résultat"

@@ -616,6 +616,28 @@ def parse_lldp_detail(out):
             (rport.group(1).strip() if rport else ""))
 
 
+def _looks_like_mac(s):
+    return bool(re.fullmatch(r"(?:[0-9A-Fa-f]{2}[\s:.-]?){6}", (s or "").strip()))
+
+
+def parse_cdp(text):
+    """{port_local: {device_id, ip, rport}} depuis 'show cdp neighbors detail'."""
+    out = {}
+    for blk in re.split(r"(?m)^-{3,}\s*$", text or ""):
+        port = re.search(r"(?im)^\s*Port\s*:\s*(\S+)", blk)
+        if not port:
+            continue
+        did = re.search(r"(?im)^\s*Device ID\s*:\s*(.+?)\s*$", blk)
+        ip = re.search(r"(?im)^\s*Address\s*:\s*(\d{1,3}(?:\.\d{1,3}){3})", blk)
+        rport = re.search(r"(?im)^\s*Device Port\s*:\s*(.+?)\s*$", blk)
+        out[port.group(1)] = {
+            "device_id": (did.group(1).strip() if did else ""),
+            "ip": (ip.group(1) if ip else ""),
+            "rport": (rport.group(1).strip() if rport else ""),
+        }
+    return out
+
+
 def parse_members(*texts):
     """(dans_un_stack, [{id, role}]) depuis 'show stacking' et/ou 'show vsf'.
 
@@ -640,20 +662,33 @@ def parse_members(*texts):
 @login_required
 def trunks_dashboard():
     data = _read_json("/backups/trunks.json", [])
+    ip2name = {h["ip"]: h["name"] for h in load_switch_hosts() if h.get("ip")}
     rows = []
     for d in data:
         in_stack, members = parse_members(d.get("stacking", ""), d.get("vsf", ""))
-        # Voisin LLDP par port local (switch + port en face).
+        cdp = parse_cdp(d.get("cdp", ""))
+        # Repli LLDP par port local.
         lmap = {}
         for e in d.get("lldp", []):
             nm, rp = parse_lldp_detail(e.get("out", ""))
             lmap[str(e.get("port"))] = {"neighbor": nm, "rport": rp}
         trunks = parse_trunks(d.get("trunks", ""))
         for t in trunks:
-            t["links"] = [{"port": p,
-                           "neighbor": lmap.get(p, {}).get("neighbor", ""),
-                           "rport": lmap.get(p, {}).get("rport", "")}
-                          for p in t["ports"]]
+            links = []
+            for p in t["ports"]:
+                c = cdp.get(p, {})
+                # CDP : résout le switch par son IP dans l'inventaire si possible.
+                name = ip2name.get(c.get("ip", ""), "") or c.get("device_id", "")
+                rport = c.get("rport", "")
+                # Repli LLDP si CDP n'a pas de nom exploitable (MAC / vide).
+                if not name or _looks_like_mac(name):
+                    lf = lmap.get(p, {})
+                    name = lf.get("neighbor", "") or name
+                    rport = lf.get("rport", "") or rport
+                if _looks_like_mac(rport):
+                    rport = ""
+                links.append({"port": p, "neighbor": name, "rport": rport})
+            t["links"] = links
         rows.append({"host": d.get("host", "?"), "ip": d.get("ip", ""),
                      "in_stack": in_stack, "members": members, "trunks": trunks})
     rows.sort(key=lambda r: r["host"])
