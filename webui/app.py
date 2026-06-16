@@ -601,12 +601,19 @@ def restore_page():
 
 
 def parse_trunks(text):
-    """Groupes d'agrégation depuis 'show trunks' -> ['Trk1 (23,24)', ...]."""
+    """Groupes d'agrégation depuis 'show trunks' -> [{name, ports:[...]}]."""
     groups = {}
     for m in re.finditer(r"(?m)^\s*(\d[\w/]*)\s*\|.*\b(Trk\d+)\b", text or ""):
         groups.setdefault(m.group(2), []).append(m.group(1))
-    return ["%s (%s)" % (trk, ",".join(ports))
-            for trk, ports in sorted(groups.items())]
+    return [{"name": trk, "ports": ports} for trk, ports in sorted(groups.items())]
+
+
+def parse_lldp_detail(out):
+    """(nom_du_voisin, port_distant) depuis 'show lldp info remote-device <port>'."""
+    name = re.search(r"(?im)^\s*SysName\s*:\s*(\S.*)$", out or "")
+    rport = re.search(r"(?im)^\s*PortId\s*:\s*(\S+)", out or "")
+    return ((name.group(1).strip() if name else ""),
+            (rport.group(1).strip() if rport else ""))
 
 
 def parse_members(*texts):
@@ -636,9 +643,19 @@ def trunks_dashboard():
     rows = []
     for d in data:
         in_stack, members = parse_members(d.get("stacking", ""), d.get("vsf", ""))
+        # Voisin LLDP par port local (switch + port en face).
+        lmap = {}
+        for e in d.get("lldp", []):
+            nm, rp = parse_lldp_detail(e.get("out", ""))
+            lmap[str(e.get("port"))] = {"neighbor": nm, "rport": rp}
+        trunks = parse_trunks(d.get("trunks", ""))
+        for t in trunks:
+            t["links"] = [{"port": p,
+                           "neighbor": lmap.get(p, {}).get("neighbor", ""),
+                           "rport": lmap.get(p, {}).get("rport", "")}
+                          for p in t["ports"]]
         rows.append({"host": d.get("host", "?"), "ip": d.get("ip", ""),
-                     "in_stack": in_stack, "members": members,
-                     "trunks": parse_trunks(d.get("trunks", ""))})
+                     "in_stack": in_stack, "members": members, "trunks": trunks})
     rows.sort(key=lambda r: r["host"])
     return render_template("trunks.html", rows=rows, scanned=bool(data))
 

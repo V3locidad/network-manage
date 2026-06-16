@@ -35,6 +35,35 @@
       failed_when: false
       changed_when: false
 
+    - name: "Ports membres des trunks"
+      ansible.builtin.set_fact:
+        tk_trunk_ports: >-
+          {{ tk_trunk.stdout | default('')
+             | regex_findall('(?m)^\s*(\d[0-9A-Za-z/]*)\s*\|.*Trk\d+') }}
+
+    - name: "Détail LLDP de chaque port de trunk (voisin en face)"
+      ansible.netcommon.cli_command:
+        command: "show lldp info remote-device {{ item }}"
+      loop: "{{ tk_trunk_ports | default([]) }}"
+      register: tk_lldp
+      failed_when: false
+      changed_when: false
+      when: (tk_trunk_ports | default([])) | length > 0
+
+    - name: "Initialiser la liste LLDP"
+      ansible.builtin.set_fact:
+        tk_lldp_list: []
+
+    - name: "Construire la liste port -> détail LLDP"
+      ansible.builtin.set_fact:
+        tk_lldp_list: >-
+          {{ tk_lldp_list
+             + [ {'port': item.item, 'out': item.stdout | default('')} ] }}
+      loop: "{{ tk_lldp.results | default([]) }}"
+      loop_control:
+        label: "{{ item.item | default('') }}"
+      when: tk_lldp.results is defined
+
     - name: "Mémoriser la sortie brute"
       ansible.builtin.set_fact:
         host_trunk_info:
@@ -43,6 +72,7 @@
           stacking: "{{ tk_stack.stdout | default('') }}"
           vsf: "{{ tk_vsf.stdout | default('') }}"
           trunks: "{{ tk_trunk.stdout | default('') }}"
+          lldp: "{{ tk_lldp_list | default([]) }}"
 
 - name: "Consolidation du résultat"
   hosts: localhost

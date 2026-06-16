@@ -1,38 +1,59 @@
 {% extends "base.html" %}
 {% block content %}
 <div style="display:flex;justify-content:space-between;align-items:center;margin:0 0 6px;">
-  <h2 style="margin:0;">Stack & Trunks</h2>
+  <h2 style="margin:0;">Stack &amp; Trunks</h2>
   <form method="post" action="{{ url_for('run', action='trunks') }}" style="margin:0;">
     <button type="submit" style="width:auto;margin:0;background:#334155;font-size:13px;">⟳ Collecter</button>
   </form>
 </div>
 <p class="muted" style="margin:0 0 18px;font-size:13px;">
-  Pour chaque switch : appartenance à un stack (VSF) + son numéro de membre,
-  et les agrégations de liens (Trk) configurées.
+  Pour chaque switch : appartenance à un stack (VSF/backplane) avec ses membres
+  et rôles, et les agrégations de liens (Trk) avec le voisin en face (switch + port).
 </p>
 
 {% if not scanned %}
   <div class="card"><p class="muted">Aucune donnée. Clique sur « Collecter »
     pour interroger les switchs.</p></div>
 {% else %}
+  <style>
+    .tk td { vertical-align: top; }
+    .mbrs { display: flex; flex-wrap: wrap; gap: 5px; }
+    .link { font-size: 12px; color: #94a3b8; margin: 2px 0 0 6px; }
+    .link b { color: #cbd5e1; font-weight: 600; }
+    .trk { margin-bottom: 8px; }
+    .trk-name { font-weight: 700; color: #93c5fd; }
+  </style>
   <div class="card">
-    <table>
-      <tr><th>Switch</th><th>IP</th><th>Stack</th><th>Membres</th><th>Trunks</th></tr>
+    <table class="tk">
+      <tr><th>Switch</th><th>IP</th><th>Stack</th><th>Membres</th><th>Trunks (voisin en face)</th></tr>
       {% for r in rows %}
       <tr>
-        <td>{{ r.host }}</td>
+        <td style="white-space:nowrap;">{{ r.host }}</td>
         <td class="muted">{{ r.ip }}</td>
         <td>
-          {% if r.in_stack %}<span class="badge b-ok">stack ({{ r.members|length }})</span>
+          {% if r.in_stack %}<span class="badge b-ok">stack&nbsp;·&nbsp;{{ r.members|length }}</span>
           {% else %}<span class="badge b-muted">non</span>{% endif %}
         </td>
         <td>
           {% if r.in_stack %}
-            {% for m in r.members %}<span class="badge b-run" style="margin-right:4px;" title="{{ m.role }}">{{ m.id }}{% if m.role %} · {{ m.role[:4] }}{% endif %}</span>{% endfor %}
+            <div class="mbrs">
+            {% for m in r.members %}
+              <span class="badge {{ 'b-ok' if m.role=='Commander' else ('b-amber' if m.role=='Standby' else 'b-muted') }}">{{ m.id }}&nbsp;·&nbsp;{{ m.role or '?' }}</span>
+            {% endfor %}
+            </div>
           {% else %}<span class="muted">—</span>{% endif %}
         </td>
         <td>
-          {% if r.trunks %}{% for t in r.trunks %}<span class="badge b-run" style="margin-right:4px;">{{ t }}</span>{% endfor %}
+          {% if r.trunks %}
+            {% for t in r.trunks %}
+            <div class="trk">
+              <span class="trk-name">{{ t.name }}</span>
+              {% for l in t.links %}
+              <div class="link"><b>{{ l.port }}</b> →
+                {{ l.neighbor if l.neighbor else '(inconnu)' }}{% if l.rport %} <b>{{ l.rport }}</b>{% endif %}</div>
+              {% endfor %}
+            </div>
+            {% endfor %}
           {% else %}<span class="muted">aucun</span>{% endif %}
         </td>
       </tr>
