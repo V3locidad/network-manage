@@ -14,6 +14,8 @@ services:
     # (réseau de management), donc joignable par les switchs.
     network_mode: host
     volumes:
-      - ./images:/srv/tftp:ro
+      # RW (et non RO) uniquement pour permettre le sous-montage backups/ ;
+      # tftpd-hpa sert en lecture seule (pas d'option -c), aucune écriture possible.
+      - ./images:/srv/tftp
       # Sauvegardes servies sous backups/<host>/<fichier>.cfg (pour la restauration).
       - ../backups:/srv/tftp/backups:ro
