@@ -187,8 +187,10 @@ def load_baseline():
     try:
         with open(SITE_YML) as fh:
             sy = yaml.safe_load(fh) or {}
+        # snmp_location volontairement EXCLU : propre à chaque switch, on ne le
+        # pré-remplit pas (sinon l'appliquer à tous écraserait les localisations).
         for k in ("ntp_server", "logging_server", "snmp_community",
-                  "snmp_contact", "snmp_location", "authorized_manager",
+                  "snmp_contact", "authorized_manager",
                   "protected_vlans", "loop_protect_disable_timer"):
             if k in sy and sy[k] not in (None, ""):
                 data[k] = sy[k]
