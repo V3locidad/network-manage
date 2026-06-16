@@ -609,15 +609,24 @@ def parse_trunks(text):
             for trk, ports in sorted(groups.items())]
 
 
-def parse_stacking(text):
-    """(dans_un_stack, numéro_de_membre) depuis 'show stacking'."""
-    t = text or ""
-    low = t.lower()
-    if (not t.strip() or "not enabled" in low or "disabled" in low
-            or "invalid input" in low):
-        return False, ""
-    m = re.search(r"(?m)^\s*\*\s*(\d+)\s*\|", t) or re.search(r"\*\s*(\d+)", t)
-    return True, (m.group(1) if m else "?")
+def parse_members(*texts):
+    """(dans_un_stack, [{id, role}]) depuis 'show stacking' et/ou 'show vsf'.
+
+    Un membre = une ligne « <id> <mac>  <modèle> ... <rôle> ». Marche pour le
+    backplane stacking (3810M/5400) comme pour le VSF (2920/2930)."""
+    text = "\n".join(t or "" for t in texts)
+    members = []
+    seen = set()
+    for m in re.finditer(
+            r"(?m)^\s*(\d+)\s+[0-9A-Fa-f]{6}-[0-9A-Fa-f]{6}\b(.*)$", text):
+        mid = m.group(1)
+        if mid in seen:
+            continue
+        seen.add(mid)
+        role = re.search(r"(Commander|Standby|Member|Active)", m.group(2))
+        members.append({"id": mid, "role": role.group(1) if role else ""})
+    members.sort(key=lambda x: int(x["id"]))
+    return (len(members) > 0), members
 
 
 @app.route("/trunks")
@@ -626,9 +635,9 @@ def trunks_dashboard():
     data = _read_json("/backups/trunks.json", [])
     rows = []
     for d in data:
-        in_stack, member = parse_stacking(d.get("stacking", ""))
+        in_stack, members = parse_members(d.get("stacking", ""), d.get("vsf", ""))
         rows.append({"host": d.get("host", "?"), "ip": d.get("ip", ""),
-                     "in_stack": in_stack, "member": member,
+                     "in_stack": in_stack, "members": members,
                      "trunks": parse_trunks(d.get("trunks", ""))})
     rows.sort(key=lambda r: r["host"])
     return render_template("trunks.html", rows=rows, scanned=bool(data))

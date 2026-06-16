@@ -17,16 +17,20 @@
 {% else %}
   <div class="card">
     <table>
-      <tr><th>Switch</th><th>IP</th><th>Stack</th><th>Membre</th><th>Trunks</th></tr>
+      <tr><th>Switch</th><th>IP</th><th>Stack</th><th>Membres</th><th>Trunks</th></tr>
       {% for r in rows %}
       <tr>
         <td>{{ r.host }}</td>
         <td class="muted">{{ r.ip }}</td>
         <td>
-          {% if r.in_stack %}<span class="badge b-ok">stack</span>
+          {% if r.in_stack %}<span class="badge b-ok">stack ({{ r.members|length }})</span>
           {% else %}<span class="badge b-muted">non</span>{% endif %}
         </td>
-        <td>{{ r.member if r.in_stack else '—' }}</td>
+        <td>
+          {% if r.in_stack %}
+            {% for m in r.members %}<span class="badge b-run" style="margin-right:4px;" title="{{ m.role }}">{{ m.id }}{% if m.role %} · {{ m.role[:4] }}{% endif %}</span>{% endfor %}
+          {% else %}<span class="muted">—</span>{% endif %}
+        </td>
         <td>
           {% if r.trunks %}{% for t in r.trunks %}<span class="badge b-run" style="margin-right:4px;">{{ t }}</span>{% endfor %}
           {% else %}<span class="muted">aucun</span>{% endif %}

@@ -13,10 +13,18 @@
     target: procurve
 
   tasks:
-    - name: "Lire l'état du stack"
+    # Stacking selon la famille : 3810M/5400 = « show stacking », 2930 = « show vsf ».
+    - name: "Lire l'état du stack (backplane stacking)"
       ansible.netcommon.cli_command:
         command: show stacking
       register: tk_stack
+      failed_when: false
+      changed_when: false
+
+    - name: "Lire l'état VSF (familles 2920/2930)"
+      ansible.netcommon.cli_command:
+        command: show vsf
+      register: tk_vsf
       failed_when: false
       changed_when: false
 
@@ -33,6 +41,7 @@
           host: "{{ inventory_hostname }}"
           ip: "{{ ansible_host | default('') }}"
           stacking: "{{ tk_stack.stdout | default('') }}"
+          vsf: "{{ tk_vsf.stdout | default('') }}"
           trunks: "{{ tk_trunk.stdout | default('') }}"
 
 - name: "Consolidation du résultat"
