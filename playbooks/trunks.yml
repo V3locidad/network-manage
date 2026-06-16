@@ -1,0 +1,56 @@
+---
+# ============================================================================
+# Collecte l'état « stack » (VSF) et « trunks » (agrégation de liens) de chaque
+# switch. Sortie brute par switch dans {{ backup_dir }}/trunks.json, analysée
+# par l'interface (page « Trunks »). Lecture seule, sans risque.
+# ============================================================================
+
+- name: "Collecte stacking + trunks"
+  hosts: "{{ target | default('procurve') }}"
+  gather_facts: false
+
+  vars:
+    target: procurve
+
+  tasks:
+    - name: "Lire l'état du stack"
+      ansible.netcommon.cli_command:
+        command: show stacking
+      register: tk_stack
+      failed_when: false
+      changed_when: false
+
+    - name: "Lire les trunks (agrégation de liens)"
+      ansible.netcommon.cli_command:
+        command: show trunks
+      register: tk_trunk
+      failed_when: false
+      changed_when: false
+
+    - name: "Mémoriser la sortie brute"
+      ansible.builtin.set_fact:
+        host_trunk_info:
+          host: "{{ inventory_hostname }}"
+          ip: "{{ ansible_host | default('') }}"
+          stacking: "{{ tk_stack.stdout | default('') }}"
+          trunks: "{{ tk_trunk.stdout | default('') }}"
+
+- name: "Consolidation du résultat"
+  hosts: localhost
+  gather_facts: false
+  vars:
+    out: "{{ backup_dir }}/trunks.json"
+  tasks:
+    - name: "Rassembler par switch"
+      ansible.builtin.set_fact:
+        trunk_report: >-
+          {{ trunk_report | default([])
+             + [ hostvars[item].host_trunk_info ] }}
+      loop: "{{ groups['switches'] }}"
+      when: hostvars[item].host_trunk_info is defined
+
+    - name: "Écrire le JSON"
+      ansible.builtin.copy:
+        content: "{{ trunk_report | default([]) | to_nice_json }}"
+        dest: "{{ out }}"
+        mode: "0644"

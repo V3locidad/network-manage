@@ -161,6 +161,13 @@ ACTIONS = {
         "icon": "",
         "desc": "",
     },
+    # Action sans carte : collecte stack/trunks (page « Trunks »).
+    "trunks": {
+        "label": "Collecte stack / trunks",
+        "playbook": "playbooks/trunks.yml",
+        "icon": "",
+        "desc": "",
+    },
 }
 
 FIRMWARE_IMAGES_DIR = os.path.join(PROJECT_DIR, "firmware", "images")
@@ -593,6 +600,40 @@ def restore_page():
     return render_template("restore.html", backups=load_host_backups())
 
 
+def parse_trunks(text):
+    """Groupes d'agrégation depuis 'show trunks' -> ['Trk1 (23,24)', ...]."""
+    groups = {}
+    for m in re.finditer(r"(?m)^\s*(\d[\w/]*)\s*\|.*\b(Trk\d+)\b", text or ""):
+        groups.setdefault(m.group(2), []).append(m.group(1))
+    return ["%s (%s)" % (trk, ",".join(ports))
+            for trk, ports in sorted(groups.items())]
+
+
+def parse_stacking(text):
+    """(dans_un_stack, numéro_de_membre) depuis 'show stacking'."""
+    t = text or ""
+    low = t.lower()
+    if (not t.strip() or "not enabled" in low or "disabled" in low
+            or "invalid input" in low):
+        return False, ""
+    m = re.search(r"(?m)^\s*\*\s*(\d+)\s*\|", t) or re.search(r"\*\s*(\d+)", t)
+    return True, (m.group(1) if m else "?")
+
+
+@app.route("/trunks")
+@login_required
+def trunks_dashboard():
+    data = _read_json("/backups/trunks.json", [])
+    rows = []
+    for d in data:
+        in_stack, member = parse_stacking(d.get("stacking", ""))
+        rows.append({"host": d.get("host", "?"), "ip": d.get("ip", ""),
+                     "in_stack": in_stack, "member": member,
+                     "trunks": parse_trunks(d.get("trunks", ""))})
+    rows.sort(key=lambda r: r["host"])
+    return render_template("trunks.html", rows=rows, scanned=bool(data))
+
+
 @app.route("/sync_librenms", methods=["POST"])
 @login_required
 def sync_librenms():
@@ -851,12 +892,14 @@ def run(action):
         back = url_for("console_result")
     elif action == "restore":
         back = url_for("restore_page")
+    elif action == "trunks":
+        back = url_for("trunks_dashboard")
     else:
         back = url_for("index")
     return render_template("run.html", run_id=run_id,
                            action=ACTIONS[action]["label"], back=back,
                            auto_redirect=(action in ("firmware_status", "vlan_list",
-                                                     "audit", "cmd")))
+                                                     "audit", "cmd", "trunks")))
 
 
 @app.route("/stream/<run_id>")

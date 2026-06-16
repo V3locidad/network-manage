@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin:0 0 6px;">
+  <h2 style="margin:0;">Stack & Trunks</h2>
+  <form method="post" action="{{ url_for('run', action='trunks') }}" style="margin:0;">
+    <button type="submit" style="width:auto;margin:0;background:#334155;font-size:13px;">⟳ Collecter</button>
+  </form>
+</div>
+<p class="muted" style="margin:0 0 18px;font-size:13px;">
+  Pour chaque switch : appartenance à un stack (VSF) + son numéro de membre,
+  et les agrégations de liens (Trk) configurées.
+</p>
+
+{% if not scanned %}
+  <div class="card"><p class="muted">Aucune donnée. Clique sur « Collecter »
+    pour interroger les switchs.</p></div>
+{% else %}
+  <div class="card">
+    <table>
+      <tr><th>Switch</th><th>IP</th><th>Stack</th><th>Membre</th><th>Trunks</th></tr>
+      {% for r in rows %}
+      <tr>
+        <td>{{ r.host }}</td>
+        <td class="muted">{{ r.ip }}</td>
+        <td>
+          {% if r.in_stack %}<span class="badge b-ok">stack</span>
+          {% else %}<span class="badge b-muted">non</span>{% endif %}
+        </td>
+        <td>{{ r.member if r.in_stack else '—' }}</td>
+        <td>
+          {% if r.trunks %}{% for t in r.trunks %}<span class="badge b-run" style="margin-right:4px;">{{ t }}</span>{% endfor %}
+          {% else %}<span class="muted">aucun</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+{% endif %}
+{% endblock %}
