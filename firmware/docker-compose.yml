@@ -15,3 +15,5 @@ services:
     network_mode: host
     volumes:
       - ./images:/srv/tftp:ro
+      # Sauvegardes servies sous backups/<host>/<fichier>.cfg (pour la restauration).
+      - ../backups:/srv/tftp/backups:ro

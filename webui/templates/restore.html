@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 style="margin:0 0 6px;">Restauration de configuration</h2>
+<p class="warn" style="margin:0 0 18px;font-size:13px;">
+  ⚠️ Restaure une sauvegarde sur <b>un</b> switch via TFTP, puis le
+  <b>redémarre</b> (coupure ~2-3 min). Teste d'abord en <b>simulation</b>.
+</p>
+
+{% if not backups %}
+  <div class="card"><p class="muted">Aucune sauvegarde disponible. Lance d'abord
+    l'action « Sauvegarde des configs » depuis la page Actions.</p></div>
+{% else %}
+  <div class="grid">
+    {% for host, files in backups.items() %}
+    <div class="card">
+      <h2 style="font-size:15px;">{{ host }}</h2>
+      <form method="post" action="{{ url_for('run', action='restore') }}">
+        <input type="hidden" name="target" value="{{ host }}">
+        <label>Sauvegarde à restaurer</label>
+        <select name="restore_file">
+          {% for b in files %}
+          <option value="{{ b.file }}">{{ b.when }} — {{ b.file }}</option>
+          {% endfor %}
+        </select>
+        <label class="check"><input type="checkbox" name="restore_dry_run" checked> Simulation (aucune écriture, pas de reboot)</label>
+        <button type="submit" style="background:#b45309;">Restaurer</button>
+      </form>
+    </div>
+    {% endfor %}
+  </div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,87 @@
+---
+# ============================================================================
+# Restaure une sauvegarde de configuration sur UN switch.
+#   - Charge backups/<host>/<fichier>.cfg en startup-config (via TFTP).
+#   - Recharge le switch pour appliquer (⚠️ REBOOT, coupure ~2-3 min).
+#
+# ⚠️ UN SEUL switch à la fois. restore_dry_run=true par défaut (simulation).
+#   Le serveur TFTP sert /opt/net-automation/backups sous « backups/ ».
+# ============================================================================
+
+- name: "Restauration de configuration"
+  hosts: "{{ target | default('') }}"
+  gather_facts: false
+  serial: 1
+
+  vars:
+    target: ""
+    restore_file: ""
+    restore_dry_run: true
+    restore_tftp_server: ""
+
+  tasks:
+    - name: "Garde-fou : un fichier de sauvegarde est requis"
+      ansible.builtin.assert:
+        that:
+          - restore_file | length > 0
+          - restore_tftp_server | length > 0
+        fail_msg: "Fichier de sauvegarde ou serveur TFTP manquant."
+        quiet: true
+
+    - name: "Vendor supporté"
+      ansible.builtin.assert:
+        that: switch_vendor == 'procurve'
+        fail_msg: "Restauration implémentée pour ProCurve/AOS-Switch uniquement."
+        quiet: true
+
+    # ---- SIMULATION -------------------------------------------------------
+    - name: "SIMULATION — ce qui serait fait (rien n'est touché)"
+      ansible.builtin.debug:
+        msg: >-
+          [DRY-RUN] {{ inventory_hostname }} — chargerait
+          « backups/{{ inventory_hostname }}/{{ restore_file }} » en startup-config
+          depuis tftp://{{ restore_tftp_server }}, PUIS REDÉMARRERAIT le switch
+          (coupure ~2-3 min). Décoche la simulation pour appliquer.
+      when: restore_dry_run | bool
+
+    # ---- RÉEL : charger la sauvegarde en startup-config -------------------
+    - name: "Charger la sauvegarde en startup-config (TFTP)"
+      ansible.netcommon.cli_command:
+        command: >-
+          copy tftp startup-config {{ restore_tftp_server }}
+          backups/{{ inventory_hostname }}/{{ restore_file }}
+      vars:
+        ansible_command_timeout: 120
+      when: not (restore_dry_run | bool)
+
+    # ---- RÉEL : reboot pour appliquer la startup-config -------------------
+    # On répond 'n' à « save current configuration » (sinon la running écrase la
+    # startup restaurée), puis 'y' pour redémarrer.
+    - name: "Recharger le switch (applique la startup-config)"
+      ansible.netcommon.cli_command:
+        command: reload
+        prompt:
+          - "save current configuration"
+          - "[yY]/[nN]"
+        answer:
+          - "n"
+          - "y"
+        check_all: true
+      vars:
+        ansible_command_timeout: 120
+      failed_when: false      # la session SSH tombe au reboot : normal
+      when: not (restore_dry_run | bool)
+
+    - name: "Attendre le retour du switch (SSH)"
+      ansible.builtin.wait_for:
+        host: "{{ ansible_host }}"
+        port: 22
+        delay: 60
+        timeout: 600
+      delegate_to: localhost
+      when: not (restore_dry_run | bool)
+
+    - name: "Restauration terminée"
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }} redémarré sur la config restaurée ({{ restore_file }})."
+      when: not (restore_dry_run | bool)

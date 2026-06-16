@@ -25,6 +25,8 @@ services:
       # Inoffensif tant que le fichier n'est pas chiffré.
       ANSIBLE_VAULT_PASSWORD: ${ANSIBLE_VAULT_PASSWORD:-}
       ANSIBLE_VAULT_PASSWORD_FILE: /project/secret/vault_pass.sh
+      # Serveur TFTP (firmware + restauration de config) = le LXC lui-même.
+      TFTP_SERVER: ${TFTP_SERVER:-}
       # Synchro de l'inventaire depuis LibreNMS (bouton dans l'UI).
       LNMS_URL: ${LNMS_URL:-}
       LNMS_TOKEN: ${LNMS_TOKEN:-}

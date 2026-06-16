@@ -154,6 +154,13 @@ ACTIONS = {
         "icon": "",
         "desc": "",
     },
+    # Action sans carte : restauration d'une sauvegarde (page « Restauration »).
+    "restore": {
+        "label": "Restauration de configuration",
+        "playbook": "playbooks/restore_config.yml",
+        "icon": "",
+        "desc": "",
+    },
 }
 
 FIRMWARE_IMAGES_DIR = os.path.join(PROJECT_DIR, "firmware", "images")
@@ -367,6 +374,21 @@ def load_vlans():
         return []
 
 
+def load_host_backups():
+    """{host: [{file, when}]} des sauvegardes .cfg disponibles, plus récentes d'abord."""
+    out = {}
+    for path in glob.glob(os.path.join(BACKUP_DIR, "*", "*.cfg")):
+        host = os.path.basename(os.path.dirname(path))
+        out.setdefault(host, []).append({
+            "file": os.path.basename(path),
+            "when": datetime.fromtimestamp(os.path.getmtime(path)).strftime("%Y-%m-%d %H:%M"),
+            "mtime": os.path.getmtime(path),
+        })
+    for host in out:
+        out[host].sort(key=lambda b: b["mtime"], reverse=True)
+    return dict(sorted(out.items()))
+
+
 def load_targets():
     """Cibles proposées sous forme (valeur, libellé) : groupes puis hôtes."""
     hosts = []
@@ -565,6 +587,12 @@ def history():
                            accounts=bool(load_users()))
 
 
+@app.route("/restore")
+@login_required
+def restore_page():
+    return render_template("restore.html", backups=load_host_backups())
+
+
 @app.route("/sync_librenms", methods=["POST"])
 @login_required
 def sync_librenms():
@@ -760,6 +788,12 @@ def build_command(action, form):
         lines = [ln.strip() for ln in form.get("commands", "").splitlines()
                  if ln.strip()]
         extra["commands"] = lines
+    if action == "restore":
+        extra.update({
+            "restore_file": form.get("restore_file", ""),
+            "restore_dry_run": bool(form.get("restore_dry_run")),
+            "restore_tftp_server": os.environ.get("TFTP_SERVER", ""),
+        })
     cmd = ["ansible-playbook", playbook,
            "-e", f"@{CREDS_FILE}",
            "-e", json.dumps(extra)]
@@ -815,6 +849,8 @@ def run(action):
         back = url_for("audit_dashboard")
     elif action == "cmd":
         back = url_for("console_result")
+    elif action == "restore":
+        back = url_for("restore_page")
     else:
         back = url_for("index")
     return render_template("run.html", run_id=run_id,
