@@ -39,6 +39,12 @@
 - name: "Copier l'image en flash {{ firmware_partition }} (plusieurs minutes)"
   ansible.netcommon.cli_command:
     command: "copy tftp flash {{ firmware_tftp_server }} {{ firmware_image }} {{ firmware_partition }}"
+    # AOS-Switch demande « The secondary image will be deleted. Continue (y/n)? »
+    prompt:
+      - "Continue"
+    answer:
+      - "y"
+    check_all: true
   vars:
     ansible_command_timeout: 900
   when: not (firmware_check | bool)
