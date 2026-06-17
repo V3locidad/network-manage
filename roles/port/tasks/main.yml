@@ -9,5 +9,19 @@
     fail_msg: "port_id obligatoire et port_state doit être 'enable' ou 'disable'."
     quiet: true
 
+- name: "Implémentation disponible pour {{ switch_vendor }} ?"
+  ansible.builtin.stat:
+    path: "{{ role_path }}/tasks/{{ switch_vendor }}.yml"
+  register: _vendor_impl
+  delegate_to: localhost
+
 - name: "Aiguillage vers l'implémentation {{ switch_vendor }}"
   ansible.builtin.include_tasks: "{{ switch_vendor }}.yml"
+  when: _vendor_impl.stat.exists
+
+- name: "Action non implémentée pour {{ switch_vendor }} — ignoré"
+  ansible.builtin.debug:
+    msg: >-
+      {{ inventory_hostname }} : pas d'implémentation « {{ switch_vendor }} »
+      pour cette action — ignoré (sans erreur).
+  when: not _vendor_impl.stat.exists

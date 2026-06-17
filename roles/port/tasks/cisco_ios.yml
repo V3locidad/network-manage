@@ -1,0 +1,37 @@
+---
+# Activation/désactivation de port — Cisco IOS / IOS-XE (cli_command).
+# Protection rocade : liste manuelle uplink_ports (host_vars du switch).
+
+- name: "Protection rocade (liste manuelle uplink_ports)"
+  ansible.builtin.fail:
+    msg: >-
+      ⛔ Le port {{ port_id }} de {{ inventory_hostname }} est listé en
+      uplink_ports — désactivation refusée pour ne pas couper le réseau.
+  when:
+    - port_state == 'disable'
+    - (port_id | string) in (uplink_ports | default([]) | map('string') | list)
+
+- name: "Cisco — {{ 'désactiver' if port_state == 'disable' else 'activer' }} le port {{ port_id }}"
+  ansible.netcommon.cli_command:
+    command: "{{ item }}"
+  loop:
+    - configure terminal
+    - "interface {{ port_id }}"
+    - "{{ 'shutdown' if port_state == 'disable' else 'no shutdown' }}"
+    - end
+  register: port_apply
+  when: not (port_dry_run | bool)
+
+- name: "Cisco — sauvegarde (write memory)"
+  ansible.netcommon.cli_command:
+    command: write memory
+  when:
+    - port_save_config | bool
+    - not (port_dry_run | bool)
+
+- name: "Cisco — SIMULATION"
+  ansible.builtin.debug:
+    msg: >-
+      [DRY-RUN] {{ inventory_hostname }} (Cisco) : interface {{ port_id }}
+      serait « {{ port_state }} ». Rien n'a été écrit.
+  when: port_dry_run | bool

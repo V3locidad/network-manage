@@ -1,0 +1,28 @@
+---
+# Place un port en accès dans un VLAN — Cisco IOS / IOS-XE (cli_command).
+
+- name: "Cisco — port {{ access_port_id }} en accès VLAN {{ access_vlan_id }}"
+  ansible.netcommon.cli_command:
+    command: "{{ item }}"
+  loop:
+    - configure terminal
+    - "interface {{ access_port_id }}"
+    - switchport mode access
+    - "switchport access vlan {{ access_vlan_id | int }}"
+    - end
+  register: access_apply
+  when: not (access_dry_run | bool)
+
+- name: "Cisco — sauvegarde (write memory)"
+  ansible.netcommon.cli_command:
+    command: write memory
+  when:
+    - access_save | bool
+    - not (access_dry_run | bool)
+
+- name: "Cisco — SIMULATION"
+  ansible.builtin.debug:
+    msg: >-
+      [DRY-RUN] {{ inventory_hostname }} (Cisco) : port {{ access_port_id }}
+      passerait en accès VLAN {{ access_vlan_id }}. Rien n'a été écrit.
+  when: access_dry_run | bool
