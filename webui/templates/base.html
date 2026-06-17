@@ -53,24 +53,64 @@
     .b-amber { background: #4a3209; color: #fcd34d; }
     .b-muted { background: #334155; color: #cbd5e1; }
     .ok { color: #6ee7b7; } .bad { color: #fca5a5; } .muted { color: #64748b; }
+    /* Barre de navigation + menus déroulants */
+    nav { display: flex; gap: 18px; align-items: center; flex-wrap: wrap;
+          flex: 1; margin-left: 24px; }
+    nav a { color: #94a3b8; text-decoration: none; font-size: 14px; }
+    nav a:hover { color: #e2e8f0; }
+    .menu { position: relative; }
+    .menu > .menu-label { cursor: default; color: #94a3b8; font-size: 14px;
+                          user-select: none; }
+    .menu:hover > .menu-label { color: #e2e8f0; }
+    .menu .dropdown { position: absolute; top: 100%; left: 0; min-width: 180px;
+                      background: #1e293b; border: 1px solid #334155;
+                      border-radius: 8px; padding: 6px; z-index: 50;
+                      display: none; flex-direction: column; gap: 2px;
+                      box-shadow: 0 8px 24px rgba(0,0,0,.35); }
+    .menu:hover .dropdown { display: flex; }
+    .menu .dropdown a { padding: 8px 12px; border-radius: 6px; font-size: 13.5px;
+                        white-space: nowrap; }
+    .menu .dropdown a:hover { background: #334155; color: #e2e8f0; }
+    .nav-sep { flex: 1; }
   </style>
 </head>
 <body>
   <header>
     <h1>Gestion des switchs</h1>
     {% if session.get('auth') %}
-      <nav style="display:flex;gap:18px;align-items:center;flex-wrap:wrap;">
+      <nav>
         <a href="{{ url_for('dashboard') }}">Tableau de bord</a>
-        <a href="{{ url_for('index') }}">Actions</a>
-        <a href="{{ url_for('console_result') }}">Console</a>
-        <a href="{{ url_for('restore_page') }}">Restauration</a>
-        <a href="{{ url_for('terminal') }}">Terminal</a>
-        <a href="{{ url_for('settings') }}">Config standard</a>
-        <a href="{{ url_for('audit_dashboard') }}">Conformité</a>
-        <a href="{{ url_for('firmware_dashboard') }}">État du parc</a>
-        <a href="{{ url_for('trunks_dashboard') }}">Trunks</a>
-        {% if central_configured %}<a href="{{ url_for('central_page') }}">Aruba Central</a>{% endif %}
+
+        <div class="menu">
+          <span class="menu-label">Configurer ▾</span>
+          <div class="dropdown">
+            <a href="{{ url_for('index') }}">Actions</a>
+            <a href="{{ url_for('restore_page') }}">Restauration</a>
+            <a href="{{ url_for('settings') }}">Config standard</a>
+          </div>
+        </div>
+
+        <div class="menu">
+          <span class="menu-label">Accès ▾</span>
+          <div class="dropdown">
+            <a href="{{ url_for('console_result') }}">Console</a>
+            <a href="{{ url_for('terminal') }}">Terminal</a>
+          </div>
+        </div>
+
+        <div class="menu">
+          <span class="menu-label">Parc ▾</span>
+          <div class="dropdown">
+            <a href="{{ url_for('firmware_dashboard') }}">État du parc</a>
+            <a href="{{ url_for('trunks_dashboard') }}">Trunks</a>
+            <a href="{{ url_for('audit_dashboard') }}">Conformité</a>
+            {% if central_configured %}<a href="{{ url_for('central_page') }}">Aruba Central</a>{% endif %}
+          </div>
+        </div>
+
         <a href="{{ url_for('history') }}">Historique</a>
+
+        <span class="nav-sep"></span>
         {% if session.get('who') %}<span style="color:#64748b;font-size:13px;">👤 {{ session.get('who') }}</span>{% endif %}
         {% if accounts_mode %}<a href="{{ url_for('change_password') }}">Mot de passe</a>{% endif %}
         <a href="{{ url_for('logout') }}">Déconnexion</a>
