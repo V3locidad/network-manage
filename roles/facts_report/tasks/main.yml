@@ -31,23 +31,27 @@
       ansible.netcommon.cli_command:
         command: show system
       register: pc_system
+      failed_when: false
+      changed_when: false
 
-    - name: "Récupérer 'show modules'"
+    - name: "Récupérer 'show modules' (absent sur certains modèles fixes)"
       ansible.netcommon.cli_command:
         command: show modules
       register: pc_modules
+      failed_when: false
+      changed_when: false
 
-    - name: "Extraire version / série / modèle"
+    - name: "Extraire version / série / modèle (tolérant)"
       ansible.builtin.set_fact:
         ansible_net_version: >-
-          {{ (pc_system.stdout | regex_search('Software revision\s*:\s*(\S+)', '\1')
+          {{ (pc_system.stdout | default('') | regex_search('Software revision\s*:\s*(\S+)', '\1')
               | default(['?'], true)) | first }}
         ansible_net_serialnum: >-
-          {{ (pc_system.stdout | regex_search('Serial Number\s*:\s*(\S+)', '\1')
+          {{ (pc_system.stdout | default('') | regex_search('Serial Number\s*:\s*(\S+)', '\1')
               | default(['?'], true)) | first }}
         ansible_net_model: >-
-          {{ (pc_modules.stdout | regex_search('(J[A-Z0-9]{4,})', '\1')
-              | default(['?'], true)) | first }}
+          {{ (((pc_modules.stdout | default('')) ~ (pc_system.stdout | default('')))
+              | regex_search('(J[A-Z0-9]{4,})', '\1') | default(['?'], true)) | first }}
 
 # ---- Ligne CSV commune ------------------------------------------------------
 - name: "Construire la ligne de rapport (CSV)"
