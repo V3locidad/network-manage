@@ -94,9 +94,16 @@ def get_token():
     return _post_token(tenant_token_url(cust))
 
 
+def _full_url(path_or_url):
+    """Accepte un chemin (/devices/...) ou une URL absolue (header Location)."""
+    if path_or_url.startswith("http"):
+        return path_or_url
+    return BASE_URL + path_or_url
+
+
 def api_get(path, token):
     req = urllib.request.Request(
-        BASE_URL + path,
+        _full_url(path),
         headers={"Authorization": "Bearer " + token,
                  "Accept": "application/json"})
     with urllib.request.urlopen(req, timeout=30) as r:
@@ -105,13 +112,14 @@ def api_get(path, token):
 
 def api_post(path, token, body):
     req = urllib.request.Request(
-        BASE_URL + path, data=json.dumps(body).encode(), method="POST",
+        _full_url(path), data=json.dumps(body).encode(), method="POST",
         headers={"Authorization": "Bearer " + token,
                  "Content-Type": "application/json",
                  "Accept": "application/json"})
     with urllib.request.urlopen(req, timeout=30) as r:
         raw = r.read().decode(errors="replace")
-        return r.status, raw
+        # Le header Location donne l'URI EXACTE de suivi de l'opération async.
+        return r.status, raw, r.headers.get("Location", "")
 
 
 ASYNC_OP_PATH = "/devices/v1/async-operations"
@@ -119,17 +127,13 @@ _DONE = ("OK", "SUCCEEDED", "SUCCESS", "COMPLETE", "COMPLETED")
 _FAILED = ("FAILED", "ERROR", "CANCELLED", "REJECTED")
 
 
-def get_async_op(token, op_id):
-    return api_get("%s/%s" % (ASYNC_OP_PATH, op_id), token)
-
-
-def poll_async(token, op_id, attempts=6, delay=3):
-    """Interroge /devices/v1/async-operations/{id} jusqu'à complétion.
+def poll_async(token, target, attempts=6, delay=3):
+    """Interroge l'URI de suivi (header Location ou chemin) jusqu'à complétion.
     Renvoie (terminé: bool, op: dict|None)."""
     op = None
     for i in range(attempts):
         try:
-            op = get_async_op(token, op_id)
+            op = api_get(target, token)
         except Exception:  # noqa: BLE001
             return False, op
         st = str(op.get("status", op.get("state", ""))).upper()
@@ -162,26 +166,28 @@ def register_device(token, serial, mac):
     body = {"compute": [], "storage": [],
             "network": [{"serialNumber": serial, "macAddress": nmac}]}
     try:
-        _status, raw = api_post(DEVICES_PATH, token, body)
+        _status, raw, location = api_post(DEVICES_PATH, token, body)
     except urllib.error.HTTPError as e:
         return False, "HTTP %s %s" % (e.code, e.read().decode(errors="replace")[:800])
     except Exception as e:  # noqa: BLE001
         return False, str(e)
 
+    # URI de suivi : header Location en priorité, sinon /async-operations/<txId>.
     try:
         op_id = (json.loads(raw) or {}).get("transactionId", "")
     except Exception:  # noqa: BLE001
         op_id = ""
-    if not op_id:
-        return True, "accepté mais transactionId introuvable : %s" % raw[:300]
+    target = location or (("%s/%s" % (ASYNC_OP_PATH, op_id)) if op_id else "")
+    if not target:
+        return True, "accepté mais URI de suivi introuvable : %s" % raw[:300]
 
-    done, op = poll_async(token, op_id)
+    done, op = poll_async(token, target)
     if op is None:
-        return True, "accepté (transactionId %s) — statut non lisible" % op_id
+        return True, "accepté (suivi %s) — statut non lisible" % target
     st = str(op.get("status", op.get("state", "?")))
     summary = json.dumps(op, ensure_ascii=False)[:600]
     if not done:
-        return True, "en cours (transactionId %s, statut %s) — recharge plus tard" % (op_id, st)
+        return True, "en cours (%s, statut %s) — recharge plus tard" % (target, st)
     ok = st.upper() in _DONE
     return ok, "statut %s — %s" % (st, summary)
 
@@ -225,10 +231,12 @@ def main():
 
     if cmd == "status":
         if len(sys.argv) < 3:
-            sys.exit("usage: central.py status <transactionId>")
+            sys.exit("usage: central.py status <transactionId|chemin|URL Location>")
         token = get_token()
-        print(json.dumps(get_async_op(token, sys.argv[2].strip()),
-                         ensure_ascii=False, indent=2))
+        arg = sys.argv[2].strip()
+        target = arg if (arg.startswith("/") or arg.startswith("http")) \
+            else "%s/%s" % (ASYNC_OP_PATH, arg)
+        print(json.dumps(api_get(target, token), ensure_ascii=False, indent=2))
         return
 
     token = get_token()
