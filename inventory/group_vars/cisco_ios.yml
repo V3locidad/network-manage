@@ -7,10 +7,11 @@ ansible_network_os: cisco.ios.ios
 ansible_user: "{{ vault_cisco_user | default(omit) }}"
 ansible_password: "{{ vault_cisco_pass | default(omit) }}"
 
-# Passage en mode privilégié (enable). Par défaut, le mot de passe enable = le
-# mot de passe de connexion (cas courant). Surcharge possible : vault_cisco_enable.
-# Si le compte ouvre déjà en privilège 15, mets cisco_become=false (-e).
-ansible_become: "{{ cisco_become | default(true) }}"
+# Passage en mode privilégié (enable). DÉSACTIVÉ par défaut : les commandes de
+# LECTURE (facts, show…) marchent au niveau user -> état firmware / rapports /
+# backup fonctionnent sans enable. Pour la CONFIG (port/VLAN) qui exige le mode
+# privilégié, lance avec -e cisco_become=true.
+ansible_become: "{{ cisco_become | default(false) }}"
 ansible_become_method: enable
 # Mot de passe enable : cisco_enable_password (secret/switch_creds.yml) en
 # priorité, sinon le mot de passe de connexion. Si pas d'enable, -e cisco_become=false.
