@@ -25,6 +25,16 @@
   failed_when: false
   when: switch_vendor == 'aruba_cx'
 
+- name: "Aruba CX — garantir ansible_net_version (noms de fact variables)"
+  ansible.builtin.set_fact:
+    ansible_net_version: >-
+      {{ ansible_net_version
+         | default(ansible_net_software_version
+           | default((aoscx_facts_res.ansible_facts | default({})).ansible_net_version
+             | default((aoscx_facts_res.ansible_facts | default({})).ansible_net_software_version
+               | default('?')))) }}
+  when: switch_vendor == 'aruba_cx'
+
 # ---- Aruba 2930F / AOS-Switch (SSH/CLI) -------------------------------------
 - name: "ProCurve/AOS-Switch — collecte via CLI"
   when: switch_vendor == 'procurve'
