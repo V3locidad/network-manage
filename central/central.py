@@ -130,12 +130,14 @@ def register_device(token, serial, mac):
         return False, "numéro de série manquant"
     if not nmac:
         return False, "MAC invalide ou manquante (%r)" % mac
-    body = {"network": [{"serialNumber": serial, "macAddress": nmac}]}
+    # L'API exige les 3 familles présentes ; celles qu'on n'ajoute pas = [].
+    body = {"compute": [], "storage": [],
+            "network": [{"serialNumber": serial, "macAddress": nmac}]}
     try:
         status, raw = api_post(DEVICES_PATH, token, body)
-        return True, "HTTP %s %s" % (status, raw[:300])
+        return True, "HTTP %s %s" % (status, raw[:800])
     except urllib.error.HTTPError as e:
-        detail = e.read().decode(errors="replace")[:300]
+        detail = e.read().decode(errors="replace")[:800]
         return False, "HTTP %s %s" % (e.code, detail)
     except Exception as e:  # noqa: BLE001
         return False, str(e)
