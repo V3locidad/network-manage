@@ -1,27 +1,36 @@
 ---
 # Activation/désactivation de port — Aruba CX en SSH/CLI (cli_command).
-# Protection rocade : liste manuelle uplink_ports OU voisin LLDP « Bridge ».
+# Protection rocade : liste manuelle uplink_ports OU voisin LLDP qui est un
+# switch de l'inventaire (le résumé LLDP AOS-CX n'a pas de colonne « Bridge »,
+# on s'appuie donc sur le SYS-NAME du voisin).
 
-- name: "Aruba CX — voisin LLDP du port {{ port_id }}"
+- name: "Aruba CX — voisins LLDP (détection rocade)"
   ansible.netcommon.cli_command:
-    command: "show lldp neighbor-info interface {{ port_id }}"
+    command: show lldp neighbor-info
   register: cx_lldp
   failed_when: false
   changed_when: false
+  when: port_state == 'disable'
+
+- name: "Aruba CX — ligne LLDP du port {{ port_id }}"
+  ansible.builtin.set_fact:
+    cx_port_line: >-
+      {{ (cx_lldp.stdout | default('')
+          | regex_findall('(?m)^' ~ (port_id | regex_escape) ~ '\s.*$'))
+         | first | default('') }}
   when: port_state == 'disable'
 
 - name: "Aruba CX — INTERDIT : désactivation d'une rocade"
   ansible.builtin.fail:
     msg: >-
       ⛔ Le port {{ port_id }} de {{ inventory_hostname }} est une ROCADE
-      (voisin « Bridge » détecté en LLDP, ou listé en uplink_ports).
-      Désactivation refusée pour ne pas couper le réseau.
+      (voisin « {{ (groups['switches'] | select('in', cx_port_line) | list | first) | default('switch inventaire') }} »,
+      ou listé en uplink_ports). Désactivation refusée pour ne pas couper le réseau.
   when:
     - port_state == 'disable'
     - >-
       ((port_id | string) in (uplink_ports | default([]) | map('string') | list))
-      or ((cx_lldp.stdout | default('') is search('(?i)Bridge'))
-          and not (cx_lldp.stdout | default('') is search('(?i)wlan|access point|telephone')))
+      or ((groups['switches'] | select('in', cx_port_line) | list | length) > 0)
 
 - name: "Aruba CX — {{ 'désactiver' if port_state == 'disable' else 'activer' }} le port {{ port_id }}"
   ansible.netcommon.cli_command:
@@ -46,5 +55,8 @@
   ansible.builtin.debug:
     msg: >-
       [DRY-RUN] {{ inventory_hostname }} (Aruba CX) : interface {{ port_id }}
-      serait « {{ port_state }} ». Rien n'a été écrit.
+      serait « {{ port_state }} »
+      {{ ('— ROCADE détectée (voisin ' ~ (groups['switches'] | select('in', cx_port_line) | list | first) ~ ')')
+         if (groups['switches'] | select('in', cx_port_line) | list | length) > 0 else '' }}.
+      Rien n'a été écrit.
   when: port_dry_run | bool
