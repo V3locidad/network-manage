@@ -1,0 +1,75 @@
+---
+# Mise à jour firmware Aruba CX en SSH/CLI (cli_command).
+# ⚠️ PROVOQUE UN REBOOT. firmware_check=true par défaut (simulation).
+#    La partition non bootée sert de rollback.
+# NB : les invites exactes (save/continue) varient selon AOS-CX — à rôder en lab.
+
+- name: "Aruba CX — état des images (versions)"
+  ansible.netcommon.cli_command:
+    command: show images
+  register: cx_images
+  failed_when: false
+  changed_when: false
+
+- name: "Aruba CX — SIMULATION (rien n'est écrit)"
+  ansible.builtin.debug:
+    msg: >-
+      [DRY-RUN] {{ inventory_hostname }} (Aruba CX) — copierait « {{ firmware_image }} »
+      depuis tftp://{{ firmware_tftp_server }} en flash {{ firmware_partition }}
+      (vrf {{ firmware_vrf }}), puis booterait dessus.
+      ⚠️ REBOOT requis. Décoche la simulation pour appliquer.
+  when: firmware_check | bool
+
+- name: "Aruba CX — copier l'image en flash {{ firmware_partition }} (TFTP)"
+  ansible.netcommon.cli_command:
+    command: >-
+      copy tftp://{{ firmware_tftp_server }}/{{ firmware_image }}
+      {{ firmware_partition }} vrf {{ firmware_vrf }}
+    prompt:
+      - "[yY]/[nN]|Continue|continue"
+    answer:
+      - "y"
+    check_all: true
+  vars:
+    ansible_command_timeout: 900
+  failed_when: false
+  when: not (firmware_check | bool)
+
+- name: "Aruba CX — booter sur {{ firmware_partition }} + reboot"
+  ansible.netcommon.cli_command:
+    command: "boot system {{ firmware_partition }}"
+    prompt:
+      - "save the current configuration"
+      - "[yY]/[nN]|Continue|continue"
+    answer:
+      - "y"
+      - "y"
+    check_all: true
+  vars:
+    ansible_command_timeout: 120
+  failed_when: false      # la session SSH tombe au reboot : normal
+  when: not (firmware_check | bool)
+
+- name: "Aruba CX — attendre le retour (SSH)"
+  ansible.builtin.wait_for:
+    host: "{{ ansible_host }}"
+    port: 22
+    delay: 150
+    timeout: 900
+  delegate_to: localhost
+  when: not (firmware_check | bool)
+
+- name: "Aruba CX — relire les images après reboot"
+  ansible.netcommon.cli_command:
+    command: show images
+  register: cx_images_after
+  failed_when: false
+  changed_when: false
+  when: not (firmware_check | bool)
+
+- name: "Aruba CX — résultat"
+  ansible.builtin.debug:
+    msg: >-
+      {{ inventory_hostname }} redémarré. Images après MAJ :
+      {{ cx_images_after.stdout | default('(non lu)') }}
+  when: not (firmware_check | bool)

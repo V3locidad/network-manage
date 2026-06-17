@@ -1,0 +1,50 @@
+---
+# Activation/désactivation de port — Aruba CX en SSH/CLI (cli_command).
+# Protection rocade : liste manuelle uplink_ports OU voisin LLDP « Bridge ».
+
+- name: "Aruba CX — voisin LLDP du port {{ port_id }}"
+  ansible.netcommon.cli_command:
+    command: "show lldp neighbor-info interface {{ port_id }}"
+  register: cx_lldp
+  failed_when: false
+  changed_when: false
+  when: port_state == 'disable'
+
+- name: "Aruba CX — INTERDIT : désactivation d'une rocade"
+  ansible.builtin.fail:
+    msg: >-
+      ⛔ Le port {{ port_id }} de {{ inventory_hostname }} est une ROCADE
+      (voisin « Bridge » détecté en LLDP, ou listé en uplink_ports).
+      Désactivation refusée pour ne pas couper le réseau.
+  when:
+    - port_state == 'disable'
+    - >-
+      ((port_id | string) in (uplink_ports | default([]) | map('string') | list))
+      or ((cx_lldp.stdout | default('') is search('(?i)Bridge'))
+          and not (cx_lldp.stdout | default('') is search('(?i)wlan|access point|telephone')))
+
+- name: "Aruba CX — {{ 'désactiver' if port_state == 'disable' else 'activer' }} le port {{ port_id }}"
+  ansible.netcommon.cli_command:
+    command: "{{ item }}"
+  loop:
+    - configure terminal
+    - "interface {{ port_id }}"
+    - "{{ 'shutdown' if port_state == 'disable' else 'no shutdown' }}"
+    - exit
+    - end
+  register: port_apply
+  when: not (port_dry_run | bool)
+
+- name: "Aruba CX — sauvegarde (write memory)"
+  ansible.netcommon.cli_command:
+    command: write memory
+  when:
+    - port_save_config | bool
+    - not (port_dry_run | bool)
+
+- name: "Aruba CX — SIMULATION"
+  ansible.builtin.debug:
+    msg: >-
+      [DRY-RUN] {{ inventory_hostname }} (Aruba CX) : interface {{ port_id }}
+      serait « {{ port_state }} ». Rien n'a été écrit.
+  when: port_dry_run | bool

@@ -4,4 +4,5 @@ firmware_image: ""              # nom du fichier .swi sur le TFTP (ex: WC_16_11_
 firmware_target_version: ""     # version attendue après MAJ (ex: WC.16.11.0014)
 firmware_tftp_server: ""        # IP du serveur TFTP (le LXC, sur le VLAN mgmt)
 firmware_partition: secondary   # flash cible (on garde la primaire en rollback)
+firmware_vrf: mgmt              # VRF de gestion (Aruba CX) pour le TFTP
 firmware_check: true            # SIMULATION par défaut (sécurité)
