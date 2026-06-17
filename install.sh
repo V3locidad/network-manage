@@ -254,9 +254,10 @@ if yesno "Utiliser Aruba Central / HPE GreenLake ?" n; then
   set_kv webui/.env CENTRAL_CLIENT_ID "$CENTRAL_CLIENT_ID"
   set_kv webui/.env CENTRAL_CLIENT_SECRET "$CENTRAL_CLIENT_SECRET"
   # Tag par défaut (optionnel) appliqué à chaque switch enregistré.
+  # Convention courante : le tag = le nom du site (ex. « Kastler »), sans valeur.
   if yesno "Appliquer un tag par défaut aux switchs enregistrés ?" n; then
-    ask "Clé du tag (ex. site)" "site"; CENTRAL_TAG_KEY="$REPLY_VAL"
-    ask "Valeur du tag (ex. AKR)" ""; CENTRAL_TAG_VALUE="$REPLY_VAL"
+    ask "Nom du tag (ex. nom du site : Kastler)" ""; CENTRAL_TAG_KEY="$REPLY_VAL"
+    ask "Valeur du tag (laisser vide pour un tag sans valeur)" ""; CENTRAL_TAG_VALUE="$REPLY_VAL"
     set_kv webui/.env CENTRAL_TAG_KEY "$CENTRAL_TAG_KEY"
     set_kv webui/.env CENTRAL_TAG_VALUE "$CENTRAL_TAG_VALUE"
   fi
