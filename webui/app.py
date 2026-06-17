@@ -70,7 +70,10 @@ def inject_mode():
     """Expose aux templates : mode comptes + LibreNMS configuré."""
     return {"accounts_mode": bool(load_users()),
             "librenms_configured": bool(os.environ.get("LNMS_URL")
-                                        and os.environ.get("LNMS_TOKEN"))}
+                                        and os.environ.get("LNMS_TOKEN")),
+            "central_configured": bool(os.environ.get("CENTRAL_CLIENT_ID")
+                                       and os.environ.get("CENTRAL_CLIENT_SECRET")
+                                       and os.environ.get("CENTRAL_CUSTOMER_ID"))}
 
 
 @app.after_request
@@ -738,6 +741,45 @@ def trunks_dashboard():
                      "trunks": [t["name"] for t in trunks]})
     rows.sort(key=lambda r: r["host"])
     return render_template("trunks.html", rows=rows, scanned=bool(data))
+
+
+def central_registered_serials():
+    """Numéros de série enregistrés dans GreenLake/Central (via central.py).
+    Renvoie un set, ou None en cas d'erreur (creds/réseau)."""
+    try:
+        out = subprocess.run(["python", "central/central.py", "serials"],
+                             cwd=PROJECT_DIR, env=dict(os.environ),
+                             capture_output=True, text=True, timeout=45)
+        if out.returncode != 0:
+            return None
+        return {ln.strip() for ln in out.stdout.splitlines() if ln.strip()}
+    except Exception:
+        return None
+
+
+@app.route("/central")
+@login_required
+def central_page():
+    # Seuls les switchs Aruba/ProCurve peuvent être dans Aruba Central.
+    data = _read_json(FIRMWARE_STATUS_JSON, [])
+    aruba = [d for d in data if d.get("vendor") in ("procurve", "aruba_cx")]
+    registered = central_registered_serials()
+    rows = []
+    for d in aruba:
+        serial = (d.get("serial") or "?").strip()
+        if registered is None:
+            state = "error"
+        elif serial in registered:
+            state = "registered"
+        else:
+            state = "absent"
+        rows.append({"host": d.get("host", "?"), "ip": d.get("ip", ""),
+                     "model": d.get("model", "?"), "serial": serial, "state": state})
+    rows.sort(key=lambda r: r["host"])
+    n_reg = sum(1 for r in rows if r["state"] == "registered")
+    return render_template("central.html", rows=rows, n_reg=n_reg,
+                           total=len(rows), error=(registered is None),
+                           scanned=bool(data))
 
 
 @app.route("/sync_librenms", methods=["POST"])

@@ -30,6 +30,11 @@ services:
       # Synchro de l'inventaire depuis LibreNMS (bouton dans l'UI).
       LNMS_URL: ${LNMS_URL:-}
       LNMS_TOKEN: ${LNMS_TOKEN:-}
+      # Aruba Central / GreenLake (page « Aruba Central »).
+      CENTRAL_CUSTOMER_ID: ${CENTRAL_CUSTOMER_ID:-}
+      CENTRAL_CLIENT_ID: ${CENTRAL_CLIENT_ID:-}
+      CENTRAL_CLIENT_SECRET: ${CENTRAL_CLIENT_SECRET:-}
+      CENTRAL_BASE_URL: ${CENTRAL_BASE_URL:-https://global.api.greenlake.hpe.com}
     volumes:
       # Le projet Ansible (lecture seule) + les sauvegardes (écriture).
       - /opt/net-automation:/project:ro

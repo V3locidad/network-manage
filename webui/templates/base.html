@@ -69,6 +69,7 @@
         <a href="{{ url_for('audit_dashboard') }}">Conformité</a>
         <a href="{{ url_for('firmware_dashboard') }}">État du parc</a>
         <a href="{{ url_for('trunks_dashboard') }}">Trunks</a>
+        {% if central_configured %}<a href="{{ url_for('central_page') }}">Aruba Central</a>{% endif %}
         <a href="{{ url_for('history') }}">Historique</a>
         {% if session.get('who') %}<span style="color:#64748b;font-size:13px;">👤 {{ session.get('who') }}</span>{% endif %}
         {% if accounts_mode %}<a href="{{ url_for('change_password') }}">Mot de passe</a>{% endif %}
