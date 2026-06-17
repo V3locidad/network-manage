@@ -71,9 +71,9 @@ def inject_mode():
     return {"accounts_mode": bool(load_users()),
             "librenms_configured": bool(os.environ.get("LNMS_URL")
                                         and os.environ.get("LNMS_TOKEN")),
+            # customer_id optionnel : découvert automatiquement par central.py.
             "central_configured": bool(os.environ.get("CENTRAL_CLIENT_ID")
-                                       and os.environ.get("CENTRAL_CLIENT_SECRET")
-                                       and os.environ.get("CENTRAL_CUSTOMER_ID"))}
+                                       and os.environ.get("CENTRAL_CLIENT_SECRET"))}
 
 
 @app.after_request

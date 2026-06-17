@@ -240,6 +240,23 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# 6bis. Aruba Central / HPE GreenLake (optionnel)
+# ---------------------------------------------------------------------------
+echo; say "Aruba Central / HPE GreenLake (vérifier/enregistrer les switchs Aruba)"
+USE_CENTRAL=no
+if yesno "Utiliser Aruba Central / HPE GreenLake ?" n; then
+  echo "  Dans HPE GreenLake : Manage Workspace > API > crée des identifiants"
+  echo "  (Client Credentials). Récupère le Client ID et le Client Secret."
+  echo "  Le customer_id (Workspace ID) sera découvert automatiquement, pas besoin"
+  echo "  de le saisir."
+  ask "Client ID GreenLake" ""; CENTRAL_CLIENT_ID="$REPLY_VAL"
+  ask_secret "Client Secret GreenLake"; CENTRAL_CLIENT_SECRET="$REPLY_VAL"
+  set_kv webui/.env CENTRAL_CLIENT_ID "$CENTRAL_CLIENT_ID"
+  set_kv webui/.env CENTRAL_CLIENT_SECRET "$CENTRAL_CLIENT_SECRET"
+  USE_CENTRAL=yes
+fi
+
+# ---------------------------------------------------------------------------
 # 7. Certificat TLS (HTTPS par IP) + mot de passe du terminal
 # ---------------------------------------------------------------------------
 echo; say "HTTPS / reverse proxy"
@@ -269,6 +286,22 @@ if [ "$USE_LNMS" = yes ]; then
   fi
 else
   warn "Inventaire à compléter à la main : inventory/hosts.yml"
+fi
+
+# Aruba Central : découverte du customer_id + test d'auth (après le build)
+if [ "$USE_CENTRAL" = yes ]; then
+  say "Aruba Central : découverte du customer_id et test d'authentification"
+  CENTRAL_CUSTOMER_ID="$(docker run --rm --network host \
+       -e CENTRAL_CLIENT_ID="$CENTRAL_CLIENT_ID" \
+       -e CENTRAL_CLIENT_SECRET="$CENTRAL_CLIENT_SECRET" \
+       -v "$INSTALL_DIR:/project" -w /project "$IMAGE" \
+       python central/central.py customer 2>/dev/null | tr -d '\r')"
+  if [ -n "$CENTRAL_CUSTOMER_ID" ]; then
+    set_kv webui/.env CENTRAL_CUSTOMER_ID "$CENTRAL_CUSTOMER_ID"
+    ok "Aruba Central OK — customer_id découvert : $CENTRAL_CUSTOMER_ID"
+  else
+    warn "Auth Aruba Central échouée — vérifie Client ID/Secret (page « Aruba Central » dans l'UI)"
+  fi
 fi
 
 # Chiffrement Vault effectif (après build, car ça utilise l'image)

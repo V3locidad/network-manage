@@ -7,18 +7,22 @@ Sans dépendance externe (urllib + json).
 ⚠️ Les identifiants NE sont PAS dans ce fichier (versionné) : variables d'env
 (à mettre dans webui/.env, git-ignoré) :
 
-  CENTRAL_CUSTOMER_ID    platform_customer_id GreenLake (dans l'URL du token)
-  CENTRAL_CLIENT_ID      client d'API GreenLake
-  CENTRAL_CLIENT_SECRET  secret du client
+  CENTRAL_CLIENT_ID      client d'API GreenLake          (OBLIGATOIRE)
+  CENTRAL_CLIENT_SECRET  secret du client                (OBLIGATOIRE)
+  CENTRAL_CUSTOMER_ID    platform_customer_id GreenLake  (OPTIONNEL : découvert
+                         automatiquement via l'endpoint SSO si absent)
   CENTRAL_BASE_URL       défaut: https://global.api.greenlake.hpe.com
-  CENTRAL_TOKEN_URL      (optionnel) sinon construit depuis BASE + customer_id
+  CENTRAL_TOKEN_URL      (optionnel) force l'URL du token tenant
+  CENTRAL_SSO_TOKEN_URL  défaut: https://sso.common.cloud.hpe.com/as/token.oauth2
 
 Usage :
   central.py token                 teste l'authentification
+  central.py customer              affiche le platform_customer_id (auto-découvert)
   central.py inventory             liste les appareils enregistrés (série/MAC/modèle)
   central.py serials               n'affiche que les numéros de série enregistrés
   central.py register <SÉRIE> <MAC>   enregistre un switch (POST, ÉCRIT sur le compte)
 """
+import base64
 import json
 import os
 import re
@@ -32,22 +36,60 @@ BASE_URL = os.environ.get("CENTRAL_BASE_URL",
 CUSTOMER_ID = os.environ.get("CENTRAL_CUSTOMER_ID", "")
 CLIENT_ID = os.environ.get("CENTRAL_CLIENT_ID", "")
 CLIENT_SECRET = os.environ.get("CENTRAL_CLIENT_SECRET", "")
-TOKEN_URL = os.environ.get("CENTRAL_TOKEN_URL") or (
-    "%s/authorization/v2/oauth2/%s/token" % (BASE_URL, CUSTOMER_ID))
+# Endpoint SSO global HPE : accepte client_credentials SANS connaître le
+# customer_id (il est encodé DANS le token). Sert à découvrir le customer_id.
+SSO_TOKEN_URL = os.environ.get(
+    "CENTRAL_SSO_TOKEN_URL", "https://sso.common.cloud.hpe.com/as/token.oauth2")
 DEVICES_PATH = os.environ.get("CENTRAL_INVENTORY_PATH", "/devices/v1/devices")
 
 
-def get_token():
+def tenant_token_url(customer_id):
+    return "%s/authorization/v2/oauth2/%s/token" % (BASE_URL, customer_id)
+
+
+def _post_token(url):
     data = urllib.parse.urlencode({
         "grant_type": "client_credentials",
         "client_id": CLIENT_ID,
         "client_secret": CLIENT_SECRET,
     }).encode()
     req = urllib.request.Request(
-        TOKEN_URL, data=data,
+        url, data=data,
         headers={"Content-Type": "application/x-www-form-urlencoded"})
     with urllib.request.urlopen(req, timeout=20) as r:
         return json.load(r)["access_token"]
+
+
+def jwt_claims(token):
+    """Décode (sans vérifier la signature) les claims d'un JWT."""
+    try:
+        payload = token.split(".")[1]
+        payload += "=" * (-len(payload) % 4)  # padding base64url
+        return json.loads(base64.urlsafe_b64decode(payload))
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def discover_customer_id():
+    """Découvre le platform_customer_id via l'endpoint SSO global (le client
+    n'a PAS besoin de le connaître à l'avance)."""
+    return jwt_claims(_post_token(SSO_TOKEN_URL)).get("platform_customer_id", "")
+
+
+def get_token():
+    """Renvoie un access token GreenLake.
+    - customer_id connu (env) ou CENTRAL_TOKEN_URL forcé -> auth directe (validée).
+    - sinon -> découverte du customer_id via SSO, puis auth sur l'URL tenant."""
+    if os.environ.get("CENTRAL_TOKEN_URL"):
+        return _post_token(os.environ["CENTRAL_TOKEN_URL"])
+    if CUSTOMER_ID:
+        return _post_token(tenant_token_url(CUSTOMER_ID))
+    # Pas de customer_id fourni : token SSO -> on en extrait le customer_id.
+    sso_token = _post_token(SSO_TOKEN_URL)
+    cust = jwt_claims(sso_token).get("platform_customer_id", "")
+    if not cust:
+        return sso_token  # repli : on tente l'API avec le token SSO.
+    return _post_token(tenant_token_url(cust))
 
 
 def api_get(path, token):
@@ -118,8 +160,15 @@ def main():
     cmd = sys.argv[1] if len(sys.argv) > 1 else "token"
     if not CLIENT_ID or not CLIENT_SECRET:
         sys.exit("CENTRAL_CLIENT_ID / CENTRAL_CLIENT_SECRET manquants (webui/.env).")
-    if not CUSTOMER_ID and "CENTRAL_TOKEN_URL" not in os.environ:
-        sys.exit("CENTRAL_CUSTOMER_ID manquant (webui/.env).")
+    # CENTRAL_CUSTOMER_ID est OPTIONNEL : s'il manque, on le découvre via SSO.
+
+    if cmd == "customer":
+        # Affiche le platform_customer_id (utile à l'install pour le persister).
+        cust = CUSTOMER_ID or discover_customer_id()
+        if not cust:
+            sys.exit("Impossible de découvrir le customer_id (auth échouée ?).")
+        print(cust)
+        return
 
     if cmd == "register":
         if len(sys.argv) < 4:
@@ -146,7 +195,7 @@ def main():
                 d.get("serialNumber", "?"), d.get("model", ""),
                 d.get("macAddress", ""), d.get("deviceType", "")))
         return
-    sys.exit("commande: token | inventory | serials | register")
+    sys.exit("commande: token | customer | inventory | serials | register")
 
 
 if __name__ == "__main__":
