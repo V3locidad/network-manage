@@ -63,8 +63,8 @@
     <h2>{{ actions.port.label }}</h2>
     <p>{{ actions.port.desc }}</p>
     <form method="post" action="{{ url_for('run', action='port') }}">
-      <label>Port <span class="muted">(ProCurve : 5 · Cisco : Gi0/45 · Aruba CX : 1/1/45)</span></label>
-      <input type="text" name="port_id" placeholder="5  /  Gi0/45" required>
+      <label>Port <span class="muted">(ProCurve : 5 · Cisco : 0/45 · Aruba CX : 1/1/45)</span></label>
+      <input type="text" name="port_id" placeholder="5  ou  0/45" required>
       <label>Action</label>
       <select name="port_state">
         <option value="disable">Désactiver</option>
@@ -116,8 +116,8 @@
         {% for v in vlans %}<option value="{{ v.id }}">{{ v.id }} — {{ v.name }}</option>{% endfor %}
       </select>
       {% if not vlans %}<p class="warn">Liste vide → clique « Rafraîchir les VLANs ».</p>{% endif %}
-      <label>Port <span class="muted">(ProCurve : 5 · Cisco : Gi0/45 · Aruba CX : 1/1/45)</span></label>
-      <input type="text" name="access_port_id" placeholder="5  /  Gi0/45" required>
+      <label>Port <span class="muted">(ProCurve : 5 · Cisco : 0/45 · Aruba CX : 1/1/45)</span></label>
+      <input type="text" name="access_port_id" placeholder="5  ou  0/45" required>
       <label>Switch (un seul)</label>
       <select name="target">
         {% for t in hosts %}<option value="{{ t[0] }}">{{ t[1] }}</option>{% endfor %}

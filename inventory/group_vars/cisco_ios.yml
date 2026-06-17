@@ -19,5 +19,10 @@ ansible_become_password: >-
   {{ cisco_enable_password
      | default(vault_cisco_enable | default(ansible_password | default(omit))) }}
 
+# Type d'interface préfixé automatiquement quand on ne saisit qu'un numéro
+# (ex: "0/45" -> "GigabitEthernet0/45"). Surcharge par site si besoin :
+# TenGigabitEthernet, FastEthernet, etc. Saisir un nom complet (Gi0/45) reste OK.
+cisco_interface_prefix: "GigabitEthernet"
+
 # Identifiant de "vendor" utilisé par les rôles pour l'aiguillage.
 switch_vendor: cisco_ios
