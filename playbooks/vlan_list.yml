@@ -6,20 +6,32 @@
 # ============================================================================
 
 - name: "Collecte des VLANs"
-  hosts: "{{ target | default('procurve') }}"
+  hosts: "{{ target | default('switches') }}"
   gather_facts: false
   vars:
-    target: procurve
+    target: switches
   tasks:
-    - name: "Lire 'show vlans'"
-      ansible.netcommon.cli_command:
-        command: show vlans
-      register: sv
-      changed_when: false
-
-    - name: "Extraire les couples (id, nom)"
+    - name: "Commande VLAN selon le constructeur"
       ansible.builtin.set_fact:
-        host_vlans: "{{ sv.stdout | regex_findall('(?m)^\\s*(\\d+)\\s+(.+?)\\s*\\|') }}"
+        vlan_cmd: "{{ 'show vlans' if switch_vendor == 'procurve' else 'show vlan brief' }}"
+
+    - name: "Lire la liste des VLANs"
+      ansible.netcommon.cli_command:
+        command: "{{ vlan_cmd }}"
+      register: sv
+      failed_when: false
+      changed_when: false
+      when: switch_vendor in ['procurve', 'cisco_ios', 'cisco_nxos']
+
+    - name: "Extraire les couples (id, nom) selon le format"
+      ansible.builtin.set_fact:
+        host_vlans: >-
+          {{ (sv.stdout | default('') | regex_findall('(?m)^\s*(\d+)\s+(.+?)\s*\|'))
+             if switch_vendor == 'procurve'
+             else (sv.stdout | default('') | regex_findall('(?m)^\s*(\d+)\s+(\S+)\s+(?:active|act)')) }}
+      when:
+        - switch_vendor in ['procurve', 'cisco_ios', 'cisco_nxos']
+        - sv.stdout is defined
 
 - name: "Consolidation du JSON"
   hosts: localhost

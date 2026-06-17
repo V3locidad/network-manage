@@ -396,24 +396,34 @@ def load_host_backups():
     return dict(sorted(out.items()))
 
 
+GROUP_LABELS = {
+    "procurve": "ProCurve / Aruba OS-Switch",
+    "cisco_ios": "Cisco IOS",
+    "cisco_nxos": "Cisco NX-OS",
+    "aruba_cx": "Aruba CX",
+}
+
+
 def load_targets():
-    """Cibles proposées sous forme (valeur, libellé) : groupes puis hôtes."""
-    hosts = []
+    """Cibles (valeur, libellé) : tout le parc, puis par constructeur, puis hôtes."""
+    groups, all_hosts = {}, []
     try:
         with open(INVENTORY) as fh:
             inv = yaml.safe_load(fh)
-        for grp in inv["all"]["children"].values():
-            for host in (grp.get("hosts") or {}):
-                if host not in hosts:
-                    hosts.append(host)
+        for gname, grp in inv["all"]["children"].items():
+            hs = list((grp.get("hosts") or {}).keys())
+            if hs:                       # 'switches' est un méta-groupe (children) -> ignoré
+                groups[gname] = hs
+                for h in hs:
+                    if h not in all_hosts:
+                        all_hosts.append(h)
     except Exception:
         pass
-    # Libellés clairs pour les groupes, puis chaque switch individuellement.
-    targets = [
-        ("procurve", f"Tous les switchs ({len(hosts)})"),
-        ("switches", "Tout le parc (tous constructeurs)"),
-    ]
-    targets += [(h, h) for h in hosts]
+    # 1) Tout le parc, 2) chaque constructeur présent, 3) chaque switch.
+    targets = [("switches", f"Tous les switchs ({len(all_hosts)})")]
+    for g, hs in groups.items():
+        targets.append((g, f"{GROUP_LABELS.get(g, g)} ({len(hs)})"))
+    targets += [(h, h) for h in sorted(all_hosts)]
     return targets
 
 
@@ -521,8 +531,8 @@ def change_password():
 @login_required
 def index():
     targets = load_targets()
-    # Pour l'action "port" : uniquement des switchs individuels (pas de groupe).
-    hosts = [t for t in targets if t[0] not in ("procurve", "switches")]
+    # Pour l'action "port" : uniquement des switchs individuels (valeur == libellé).
+    hosts = [t for t in targets if t[0] == t[1]]
     return render_template("index.html", actions=ACTIONS,
                            targets=targets, hosts=hosts, vlans=load_vlans())
 
