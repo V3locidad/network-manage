@@ -1,23 +1,22 @@
 #!/usr/bin/env python3
-"""Client minimal pour la NOUVELLE API HPE Aruba Networking Central (GreenLake).
+"""Client pour l'inventaire d'appareils HPE GreenLake (enregistrement Aruba Central).
 
-Auth en client_credentials -> access token, puis appels REST.
-Aucune dépendance externe (urllib + json de la stdlib).
+Auth client_credentials (token tenant GreenLake), puis appels REST.
+Sans dépendance externe (urllib + json).
 
-⚠️ Les identifiants NE sont PAS dans ce fichier (versionné) : ils viennent de
-variables d'environnement (à mettre dans webui/.env, git-ignoré) :
+⚠️ Les identifiants NE sont PAS dans ce fichier (versionné) : variables d'env
+(à mettre dans webui/.env, git-ignoré) :
 
-  CENTRAL_TOKEN_URL        défaut: https://sso.common.cloud.hpe.com/as/token.oauth2
-  CENTRAL_CLIENT_ID        client d'API personnel (Central)
-  CENTRAL_CLIENT_SECRET    secret du client d'API
-  CENTRAL_BASE_URL         URL de base régionale (ex EU-West/UK : gb1, EU : de1/de2/de3)
-                           -> https://gb1.api.central.arubanetworks.com
-  CENTRAL_INVENTORY_PATH   défaut: /network-monitoring/v1/devices
+  CENTRAL_CUSTOMER_ID    platform_customer_id GreenLake (dans l'URL du token)
+  CENTRAL_CLIENT_ID      client d'API GreenLake
+  CENTRAL_CLIENT_SECRET  secret du client
+  CENTRAL_BASE_URL       défaut: https://global.api.greenlake.hpe.com
+  CENTRAL_TOKEN_URL      (optionnel) sinon construit depuis BASE + customer_id
 
 Usage :
-  central.py token        teste l'authentification (vérifie qu'on obtient un token)
-  central.py inventory    récupère et affiche l'inventaire des appareils Central
-  central.py raw <chemin> GET brut sur <chemin> (pour explorer l'API)
+  central.py token        teste l'authentification
+  central.py inventory    liste les appareils enregistrés (série/MAC/modèle)
+  central.py serials      n'affiche que les numéros de série enregistrés
 """
 import json
 import os
@@ -25,13 +24,14 @@ import sys
 import urllib.parse
 import urllib.request
 
-TOKEN_URL = os.environ.get("CENTRAL_TOKEN_URL",
-                           "https://sso.common.cloud.hpe.com/as/token.oauth2")
+BASE_URL = os.environ.get("CENTRAL_BASE_URL",
+                          "https://global.api.greenlake.hpe.com").rstrip("/")
+CUSTOMER_ID = os.environ.get("CENTRAL_CUSTOMER_ID", "")
 CLIENT_ID = os.environ.get("CENTRAL_CLIENT_ID", "")
 CLIENT_SECRET = os.environ.get("CENTRAL_CLIENT_SECRET", "")
-BASE_URL = os.environ.get("CENTRAL_BASE_URL", "").rstrip("/")
-INVENTORY_PATH = os.environ.get("CENTRAL_INVENTORY_PATH",
-                                "/network-monitoring/v1/devices")
+TOKEN_URL = os.environ.get("CENTRAL_TOKEN_URL") or (
+    "%s/authorization/v2/oauth2/%s/token" % (BASE_URL, CUSTOMER_ID))
+DEVICES_PATH = os.environ.get("CENTRAL_INVENTORY_PATH", "/devices/v1/devices")
 
 
 def get_token():
@@ -56,33 +56,45 @@ def api_get(path, token):
         return json.load(r)
 
 
+def get_devices(token):
+    """Tous les appareils enregistrés (pagination offset/limit)."""
+    out, offset, limit = [], 0, 50
+    while True:
+        sep = "&" if "?" in DEVICES_PATH else "?"
+        page = api_get("%s%slimit=%d&offset=%d" % (DEVICES_PATH, sep, limit, offset), token)
+        items = page.get("items") if isinstance(page, dict) else (page or [])
+        out.extend(items)
+        total = page.get("total", len(out)) if isinstance(page, dict) else len(out)
+        offset += limit
+        if offset >= total or not items:
+            break
+    return out
+
+
 def main():
     cmd = sys.argv[1] if len(sys.argv) > 1 else "token"
     if not CLIENT_ID or not CLIENT_SECRET:
         sys.exit("CENTRAL_CLIENT_ID / CENTRAL_CLIENT_SECRET manquants (webui/.env).")
+    if not CUSTOMER_ID and "CENTRAL_TOKEN_URL" not in os.environ:
+        sys.exit("CENTRAL_CUSTOMER_ID manquant (webui/.env).")
     token = get_token()
 
     if cmd == "token":
         print("✅ Auth OK — access token obtenu (longueur %d)." % len(token))
         return
-    if not BASE_URL:
-        sys.exit("CENTRAL_BASE_URL manquant (URL régionale EU West de l'API).")
+    devices = get_devices(token)
+    if cmd == "serials":
+        for d in devices:
+            print(d.get("serialNumber", ""))
+        return
     if cmd == "inventory":
-        d = api_get(INVENTORY_PATH, token)
-        items = d.get("items") if isinstance(d, dict) else (d if isinstance(d, list) else [])
-        print("Appareils dans Central : %s" % (d.get("total") if isinstance(d, dict) else len(items)))
-        for it in (items or []):
-            print("  - %-20s %-12s %s" % (
-                it.get("serialNumber") or it.get("serial") or it.get("macAddress") or "?",
-                it.get("deviceType") or it.get("type") or "",
-                it.get("name") or it.get("hostname") or ""))
-        if not items:
-            print("  (aucun — tes switchs ne sont pas encore enregistrés)")
+        print("Appareils enregistrés (GreenLake) : %d" % len(devices))
+        for d in devices:
+            print("  - %-14s %-8s %-18s %s" % (
+                d.get("serialNumber", "?"), d.get("model", ""),
+                d.get("macAddress", ""), d.get("deviceType", "")))
         return
-    if cmd == "raw" and len(sys.argv) > 2:
-        print(json.dumps(api_get(sys.argv[2], token), indent=2)[:6000])
-        return
-    sys.exit("commande: token | inventory | raw <chemin>")
+    sys.exit("commande: token | inventory | serials")
 
 
 if __name__ == "__main__":
