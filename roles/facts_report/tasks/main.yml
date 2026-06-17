@@ -40,6 +40,8 @@
     ansible_net_version: "{{ (_cx_ver_out | regex_search('(?i)Version\\s*:\\s*(\\S+)', '\\1') | default(['?'], true)) | first }}"
     ansible_net_model: "{{ (_cx_sys_out | regex_search('(?i)Product Name\\s*:\\s*(.+)', '\\1') | default(['?'], true)) | first | trim }}"
     ansible_net_serialnum: "{{ (_cx_sys_out | regex_search('(?i)Serial Number\\s*:\\s*(\\S+)', '\\1') | default(['?'], true)) | first }}"
+    # MAC de base (format xx:xx:xx:xx:xx:xx dans 'show system').
+    ansible_net_basemac: "{{ (_cx_sys_out | regex_search('(?i)Base MAC Add?ress\\s*:\\s*([0-9a-fA-F:.-]+)', '\\1') | default([''], true)) | first }}"
   when: switch_vendor == 'aruba_cx'
 
 # ---- Aruba 2930F / AOS-Switch (SSH/CLI) -------------------------------------
@@ -72,6 +74,10 @@
         ansible_net_serialnum: >-
           {{ (pc_system.stdout | default('') | regex_search('Serial Number\s*:\s*(\S+)', '\1')
               | default(['?'], true)) | first }}
+        # MAC de base (format HP xxxxxx-xxxxxx dans 'show system').
+        ansible_net_basemac: >-
+          {{ (pc_system.stdout | default('') | regex_search('Base MAC Addr\s*:\s*([0-9a-fA-F:.-]+)', '\1')
+              | default([''], true)) | first }}
         # Modèle lisible (2930F, 3810M…) ; repli sur le SKU JLxxxx, sinon ?.
         ansible_net_model: >-
           {{ (_pc_desc | regex_search('2930F|2930M|3810M|2920|2540|2530|2510|2960X|2960S|5400R|6300|6200|6100|8320|8325|8360|6400'))

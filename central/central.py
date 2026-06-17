@@ -14,13 +14,16 @@ Sans dépendance externe (urllib + json).
   CENTRAL_TOKEN_URL      (optionnel) sinon construit depuis BASE + customer_id
 
 Usage :
-  central.py token        teste l'authentification
-  central.py inventory    liste les appareils enregistrés (série/MAC/modèle)
-  central.py serials      n'affiche que les numéros de série enregistrés
+  central.py token                 teste l'authentification
+  central.py inventory             liste les appareils enregistrés (série/MAC/modèle)
+  central.py serials               n'affiche que les numéros de série enregistrés
+  central.py register <SÉRIE> <MAC>   enregistre un switch (POST, ÉCRIT sur le compte)
 """
 import json
 import os
+import re
 import sys
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -56,6 +59,46 @@ def api_get(path, token):
         return json.load(r)
 
 
+def api_post(path, token, body):
+    req = urllib.request.Request(
+        BASE_URL + path, data=json.dumps(body).encode(), method="POST",
+        headers={"Authorization": "Bearer " + token,
+                 "Content-Type": "application/json",
+                 "Accept": "application/json"})
+    with urllib.request.urlopen(req, timeout=30) as r:
+        raw = r.read().decode(errors="replace")
+        return r.status, raw
+
+
+def normalize_mac(mac):
+    """Normalise une MAC (formats HP xxxxxx-xxxxxx, xx:xx:.., xxxx.xxxx.xxxx)
+    en aa:bb:cc:dd:ee:ff minuscule. Renvoie '' si pas 12 hex."""
+    hexd = re.sub(r"[^0-9a-fA-F]", "", mac or "")
+    if len(hexd) != 12:
+        return ""
+    hexd = hexd.lower()
+    return ":".join(hexd[i:i + 2] for i in range(0, 12, 2))
+
+
+def register_device(token, serial, mac):
+    """POST /devices/v1/devices — enregistre un switch réseau.
+    Renvoie (ok: bool, message: str)."""
+    nmac = normalize_mac(mac)
+    if not serial or serial == "?":
+        return False, "numéro de série manquant"
+    if not nmac:
+        return False, "MAC invalide ou manquante (%r)" % mac
+    body = {"network": [{"serialNumber": serial, "macAddress": nmac}]}
+    try:
+        status, raw = api_post(DEVICES_PATH, token, body)
+        return True, "HTTP %s %s" % (status, raw[:300])
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode(errors="replace")[:300]
+        return False, "HTTP %s %s" % (e.code, detail)
+    except Exception as e:  # noqa: BLE001
+        return False, str(e)
+
+
 def get_devices(token):
     """Tous les appareils enregistrés (pagination offset/limit)."""
     out, offset, limit = [], 0, 50
@@ -77,6 +120,15 @@ def main():
         sys.exit("CENTRAL_CLIENT_ID / CENTRAL_CLIENT_SECRET manquants (webui/.env).")
     if not CUSTOMER_ID and "CENTRAL_TOKEN_URL" not in os.environ:
         sys.exit("CENTRAL_CUSTOMER_ID manquant (webui/.env).")
+
+    if cmd == "register":
+        if len(sys.argv) < 4:
+            sys.exit("usage: central.py register <SÉRIE> <MAC>")
+        token = get_token()
+        ok, msg = register_device(token, sys.argv[2].strip(), sys.argv[3].strip())
+        print(("✅ " if ok else "❌ ") + msg)
+        sys.exit(0 if ok else 1)
+
     token = get_token()
 
     if cmd == "token":
@@ -94,7 +146,7 @@ def main():
                 d.get("serialNumber", "?"), d.get("model", ""),
                 d.get("macAddress", ""), d.get("deviceType", "")))
         return
-    sys.exit("commande: token | inventory | serials")
+    sys.exit("commande: token | inventory | serials | register")
 
 
 if __name__ == "__main__":

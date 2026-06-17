@@ -17,7 +17,7 @@ from datetime import datetime
 from functools import wraps
 
 import yaml
-from flask import (Flask, Response, redirect, render_template, request,
+from flask import (Flask, Response, flash, redirect, render_template, request,
                    session, url_for)
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -773,13 +773,64 @@ def central_page():
             state = "registered"
         else:
             state = "absent"
+        mac = (d.get("mac") or "").strip()
         rows.append({"host": d.get("host", "?"), "ip": d.get("ip", ""),
-                     "model": d.get("model", "?"), "serial": serial, "state": state})
+                     "model": d.get("model", "?"), "serial": serial,
+                     "mac": mac, "state": state,
+                     # Enregistrable = absent, série connue, MAC connue.
+                     "can_register": (state == "absent" and serial not in ("", "?")
+                                      and bool(mac))})
     rows.sort(key=lambda r: r["host"])
     n_reg = sum(1 for r in rows if r["state"] == "registered")
     return render_template("central.html", rows=rows, n_reg=n_reg,
                            total=len(rows), error=(registered is None),
                            scanned=bool(data))
+
+
+def _central_register_one(serial, mac):
+    """Appelle central.py register. Renvoie (ok, message)."""
+    try:
+        out = subprocess.run(
+            ["python", "central/central.py", "register", serial, mac],
+            cwd=PROJECT_DIR, env=dict(os.environ),
+            capture_output=True, text=True, timeout=45)
+        msg = (out.stdout or out.stderr or "").strip()
+        return out.returncode == 0, msg
+    except Exception as e:  # noqa: BLE001
+        return False, str(e)
+
+
+@app.route("/central/register", methods=["POST"])
+@login_required
+def central_register():
+    """Enregistre dans GreenLake : un switch (serial+mac) ou tous les absents."""
+    scope = request.form.get("scope", "one")
+    targets = []
+    if scope == "all":
+        data = _read_json(FIRMWARE_STATUS_JSON, [])
+        registered = central_registered_serials() or set()
+        for d in data:
+            if d.get("vendor") not in ("procurve", "aruba_cx"):
+                continue
+            serial = (d.get("serial") or "").strip()
+            mac = (d.get("mac") or "").strip()
+            if serial and serial != "?" and mac and serial not in registered:
+                targets.append((serial, mac))
+    else:
+        serial = (request.form.get("serial") or "").strip()
+        mac = (request.form.get("mac") or "").strip()
+        if serial:
+            targets.append((serial, mac))
+
+    results = []
+    for serial, mac in targets:
+        ok, msg = _central_register_one(serial, mac)
+        results.append("%s %s — %s" % ("✅" if ok else "❌", serial, msg))
+    if not results:
+        flash("Aucun switch à enregistrer (série/MAC manquante ?).")
+    else:
+        flash(" | ".join(results))
+    return redirect(url_for("central_page"))
 
 
 @app.route("/sync_librenms", methods=["POST"])

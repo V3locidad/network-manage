@@ -29,6 +29,7 @@
           version: "{{ hostvars[item].ansible_net_version | default('?') }}"
           vendor: "{{ hostvars[item].switch_vendor | default('') }}"
           serial: "{{ hostvars[item].ansible_net_serialnum | default(hostvars[item].ansible_net_stacked_serialnums[0] | default('?')) }}"
+          mac: "{{ hostvars[item].ansible_net_basemac | default('') }}"
           model: >-
             {{ hostvars[item].ansible_net_model
                | default(hostvars[item].ansible_net_stacked_models[0] | default('?')) }}
