@@ -20,7 +20,9 @@
 # ---- Aruba CX (REST) --------------------------------------------------------
 - name: "Collecte des facts (Aruba CX)"
   arubanetworks.aoscx.aoscx_facts:
-    gather_subset: ["host", "platform"]
+    gather_subset: ["software_version", "product_info"]
+  register: aoscx_facts_res
+  failed_when: false
   when: switch_vendor == 'aruba_cx'
 
 # ---- Aruba 2930F / AOS-Switch (SSH/CLI) -------------------------------------

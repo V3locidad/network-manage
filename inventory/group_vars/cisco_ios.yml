@@ -1,12 +1,18 @@
 ---
-# Connexion pour les switchs Cisco IOS / IOS-XE
+# Connexion pour les switchs Cisco IOS / IOS-XE.
+# Identifiants : fournis par l'interface via secret/switch_creds.yml (-e @...),
+# injectés comme ansible_user / ansible_password (priorité sur ce fichier).
 ansible_connection: ansible.netcommon.network_cli
 ansible_network_os: cisco.ios.ios
-ansible_user: "{{ vault_cisco_user }}"
-ansible_password: "{{ vault_cisco_pass }}"
-ansible_become: true
+ansible_user: "{{ vault_cisco_user | default(omit) }}"
+ansible_password: "{{ vault_cisco_pass | default(omit) }}"
+
+# Passage en mode privilégié (enable). Par défaut, le mot de passe enable = le
+# mot de passe de connexion (cas courant). Surcharge possible : vault_cisco_enable.
+# Si le compte ouvre déjà en privilège 15, mets cisco_become=false (-e).
+ansible_become: "{{ cisco_become | default(true) }}"
 ansible_become_method: enable
-ansible_become_password: "{{ vault_cisco_enable }}"
+ansible_become_password: "{{ vault_cisco_enable | default(ansible_password | default(omit)) }}"
 
 # Identifiant de "vendor" utilisé par les rôles pour l'aiguillage.
 switch_vendor: cisco_ios
