@@ -20,13 +20,15 @@ Usage :
   central.py customer              affiche le platform_customer_id (auto-découvert)
   central.py inventory             liste les appareils enregistrés (série/MAC/modèle)
   central.py serials               n'affiche que les numéros de série enregistrés
-  central.py register <SÉRIE> <MAC>   enregistre un switch (POST, ÉCRIT sur le compte)
+  central.py register <SÉRIE> <MAC>   enregistre un switch (POST + poll du résultat)
+  central.py status <transactionId>   statut d'une opération async (diagnostic)
 """
 import base64
 import json
 import os
 import re
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -112,6 +114,32 @@ def api_post(path, token, body):
         return r.status, raw
 
 
+ASYNC_OP_PATH = "/devices/v1/async-operations"
+_DONE = ("OK", "SUCCEEDED", "SUCCESS", "COMPLETE", "COMPLETED")
+_FAILED = ("FAILED", "ERROR", "CANCELLED", "REJECTED")
+
+
+def get_async_op(token, op_id):
+    return api_get("%s/%s" % (ASYNC_OP_PATH, op_id), token)
+
+
+def poll_async(token, op_id, attempts=6, delay=3):
+    """Interroge /devices/v1/async-operations/{id} jusqu'à complétion.
+    Renvoie (terminé: bool, op: dict|None)."""
+    op = None
+    for i in range(attempts):
+        try:
+            op = get_async_op(token, op_id)
+        except Exception:  # noqa: BLE001
+            return False, op
+        st = str(op.get("status", op.get("state", ""))).upper()
+        if st in _DONE or st in _FAILED:
+            return True, op
+        if i < attempts - 1:
+            time.sleep(delay)
+    return False, op
+
+
 def normalize_mac(mac):
     """Normalise une MAC (formats HP xxxxxx-xxxxxx, xx:xx:.., xxxx.xxxx.xxxx)
     en aa:bb:cc:dd:ee:ff minuscule. Renvoie '' si pas 12 hex."""
@@ -123,8 +151,8 @@ def normalize_mac(mac):
 
 
 def register_device(token, serial, mac):
-    """POST /devices/v1/devices — enregistre un switch réseau.
-    Renvoie (ok: bool, message: str)."""
+    """POST /devices/v1/devices puis poll de l'opération async pour connaître le
+    VRAI résultat (le 202 ne garantit rien). Renvoie (ok: bool, message: str)."""
     nmac = normalize_mac(mac)
     if not serial or serial == "?":
         return False, "numéro de série manquant"
@@ -134,13 +162,28 @@ def register_device(token, serial, mac):
     body = {"compute": [], "storage": [],
             "network": [{"serialNumber": serial, "macAddress": nmac}]}
     try:
-        status, raw = api_post(DEVICES_PATH, token, body)
-        return True, "HTTP %s %s" % (status, raw[:800])
+        _status, raw = api_post(DEVICES_PATH, token, body)
     except urllib.error.HTTPError as e:
-        detail = e.read().decode(errors="replace")[:800]
-        return False, "HTTP %s %s" % (e.code, detail)
+        return False, "HTTP %s %s" % (e.code, e.read().decode(errors="replace")[:800])
     except Exception as e:  # noqa: BLE001
         return False, str(e)
+
+    try:
+        op_id = (json.loads(raw) or {}).get("transactionId", "")
+    except Exception:  # noqa: BLE001
+        op_id = ""
+    if not op_id:
+        return True, "accepté mais transactionId introuvable : %s" % raw[:300]
+
+    done, op = poll_async(token, op_id)
+    if op is None:
+        return True, "accepté (transactionId %s) — statut non lisible" % op_id
+    st = str(op.get("status", op.get("state", "?")))
+    summary = json.dumps(op, ensure_ascii=False)[:600]
+    if not done:
+        return True, "en cours (transactionId %s, statut %s) — recharge plus tard" % (op_id, st)
+    ok = st.upper() in _DONE
+    return ok, "statut %s — %s" % (st, summary)
 
 
 def get_devices(token):
@@ -180,6 +223,14 @@ def main():
         print(("✅ " if ok else "❌ ") + msg)
         sys.exit(0 if ok else 1)
 
+    if cmd == "status":
+        if len(sys.argv) < 3:
+            sys.exit("usage: central.py status <transactionId>")
+        token = get_token()
+        print(json.dumps(get_async_op(token, sys.argv[2].strip()),
+                         ensure_ascii=False, indent=2))
+        return
+
     token = get_token()
 
     if cmd == "token":
@@ -197,7 +248,7 @@ def main():
                 d.get("serialNumber", "?"), d.get("model", ""),
                 d.get("macAddress", ""), d.get("deviceType", "")))
         return
-    sys.exit("commande: token | customer | inventory | serials | register")
+    sys.exit("commande: token | customer | inventory | serials | register | status")
 
 
 if __name__ == "__main__":
