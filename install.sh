@@ -160,14 +160,36 @@ FIRST_IP="$(echo "$DETECTED_IPS" | awk '{print $1}')"
 # ---------------------------------------------------------------------------
 # 3. Identifiants de connexion aux switchs
 # ---------------------------------------------------------------------------
-echo; say "Compte d'accès aux switchs (SSH)"
+echo; say "Compte d'accès aux switchs (SSH) — commun à tout le parc"
 ask "Nom d'utilisateur switch" "manager"; SW_USER="$REPLY_VAL"
 ask_secret "Mot de passe switch";        SW_PASS="$REPLY_VAL"
-cat > secret/switch_creds.yml <<EOF
----
-ansible_user: ${SW_USER}
-ansible_password: ${SW_PASS}
-EOF
+
+# Mot de passe « enable » Cisco (nécessaire UNIQUEMENT pour configurer des
+# Cisco : VLAN/port). Vide si pas de Cisco, ou si l'enable = le mot de passe
+# ci-dessus. La lecture (inventaire/firmware) n'en a pas besoin.
+SW_ENABLE=""
+if yesno "As-tu des switchs Cisco à configurer (VLAN/port) ?" n; then
+  ask_secret "Mot de passe enable Cisco (vide si identique au mot de passe ci-dessus)"
+  SW_ENABLE="$REPLY_VAL"
+fi
+
+{
+  echo "---"
+  echo "ansible_user: \"${SW_USER}\""
+  echo "ansible_password: \"${SW_PASS}\""
+  [ -n "$SW_ENABLE" ] && echo "cisco_enable_password: \"${SW_ENABLE}\""
+  cat <<'NOTE'
+
+# --- Identifiants PAR CONSTRUCTEUR (optionnel) ------------------------------
+# À renseigner SEULEMENT si un type de switch utilise un compte DIFFÉRENT du
+# compte commun ci-dessus (sinon laisse commenté : le compte commun s'applique).
+#   vault_cisco_user: ""        # Cisco IOS / NX-OS
+#   vault_cisco_pass: ""
+#   vault_aruba_cx_user: ""     # Aruba CX (SSH)
+#   vault_aruba_cx_pass: ""
+# (ProCurve/Aruba OS-Switch utilisent le compte commun.)
+NOTE
+} > secret/switch_creds.yml
 chmod 600 secret/switch_creds.yml
 ok "secret/switch_creds.yml créé"
 
