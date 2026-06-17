@@ -883,7 +883,7 @@ def build_command(action, form):
     extra = {"target": form.get("target", "procurve")}
     # Sur Cisco, le mode privilégié (enable) est requis pour la config ET pour
     # 'show running-config' (backup). Les autres lectures (facts) marchent sans.
-    if action in ("vlan", "port", "access", "backup"):
+    if action in ("vlan", "port", "access", "backup", "restore"):
         extra["cisco_become"] = True
     if action == "vlan":
         extra.update({
