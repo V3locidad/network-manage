@@ -21,12 +21,23 @@
          | default((cisco_interface_prefix ~ port_id), true) }}
 
 # ---- Protection rocade (avant toute désactivation) ------------------------
-- name: "Cisco — voisin CDP du port {{ cisco_if }}"
+- name: "Cisco — voisins CDP (détail)"
   ansible.netcommon.cli_command:
-    command: "show cdp neighbors {{ cisco_if }} detail"
+    command: show cdp neighbors detail
   register: cisco_cdp
   failed_when: false
   changed_when: false
+  when: port_state == 'disable'
+
+# Isole le bloc CDP correspondant à NOTRE interface (capacité + interface sont
+# dans le même bloc, séparés par une ligne de tirets).
+- name: "Cisco — bloc CDP de l'interface {{ cisco_if }}"
+  ansible.builtin.set_fact:
+    cisco_cdp_block: >-
+      {{ (cisco_cdp.stdout | default('')
+          | regex_findall('(?ms)(Device ID:.*?)(?=^-{3,}|\Z)')
+          | select('search', 'Interface:\s*' ~ (cisco_if | regex_escape) ~ ',')
+          | list | first) | default('', true) }}
   when: port_state == 'disable'
 
 - name: "Cisco — INTERDIT : désactivation d'une rocade"
@@ -39,7 +50,7 @@
     - port_state == 'disable'
     - >-
       ((port_id | string) in (uplink_ports | default([]) | map('string') | list))
-      or (cisco_cdp.stdout | default('') is search('(?i)Capabilities:.*\bSwitch\b'))
+      or (cisco_cdp_block is search('(?i)Capabilities:.*\bSwitch\b'))
 
 # ---- Application ----------------------------------------------------------
 - name: "Cisco — {{ 'désactiver' if port_state == 'disable' else 'activer' }} {{ cisco_if }}"
