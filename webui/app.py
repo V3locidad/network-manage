@@ -881,8 +881,9 @@ def build_command(action, form):
     """Construit la commande ansible-playbook à partir du formulaire."""
     playbook = ACTIONS[action]["playbook"]
     extra = {"target": form.get("target", "procurve")}
-    # Actions de CONFIG : sur Cisco, le mode privilégié (enable) est requis.
-    if action in ("vlan", "port", "access"):
+    # Sur Cisco, le mode privilégié (enable) est requis pour la config ET pour
+    # 'show running-config' (backup). Les autres lectures (facts) marchent sans.
+    if action in ("vlan", "port", "access", "backup"):
         extra["cisco_become"] = True
     if action == "vlan":
         extra.update({
