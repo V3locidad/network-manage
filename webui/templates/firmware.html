@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 <p><a href="{{ url_for('index') }}" style="color:#60a5fa;">← Actions</a></p>
-<h2>État firmware du parc</h2>
+<h2>État du Parc</h2>
 
 <div class="card" style="margin-bottom:16px;">
   {% if targets %}
@@ -37,6 +37,7 @@
     <tr style="text-align:left;color:#94a3b8;border-bottom:1px solid #334155;">
       <th style="padding:8px;">Switch</th>
       <th style="padding:8px;">IP</th>
+      <th style="padding:8px;">Modèle</th>
       <th style="padding:8px;">Version</th>
       <th style="padding:8px;">État</th>
     </tr>
@@ -46,6 +47,7 @@
     <tr style="border-bottom:1px solid #1e293b;">
       <td style="padding:8px;">{{ r.host }}</td>
       <td style="padding:8px;color:#94a3b8;">{{ r.ip }}</td>
+      <td style="padding:8px;">{{ r.model }}</td>
       <td style="padding:8px;font-family:monospace;">{{ r.version }}</td>
       <td style="padding:8px;">
         {% if r.status == 'ok' %}<span style="color:#4ade80;">✅ À jour</span>

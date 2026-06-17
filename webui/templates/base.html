@@ -67,7 +67,7 @@
         <a href="{{ url_for('terminal') }}">Terminal</a>
         <a href="{{ url_for('settings') }}">Config standard</a>
         <a href="{{ url_for('audit_dashboard') }}">Conformité</a>
-        <a href="{{ url_for('firmware_dashboard') }}">État firmware</a>
+        <a href="{{ url_for('firmware_dashboard') }}">État du parc</a>
         <a href="{{ url_for('trunks_dashboard') }}">Trunks</a>
         <a href="{{ url_for('history') }}">Historique</a>
         {% if session.get('who') %}<span style="color:#64748b;font-size:13px;">👤 {{ session.get('who') }}</span>{% endif %}

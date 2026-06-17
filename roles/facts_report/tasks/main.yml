@@ -60,6 +60,10 @@
       failed_when: false
       changed_when: false
 
+    - name: "Texte combiné modules + system"
+      ansible.builtin.set_fact:
+        _pc_desc: "{{ (pc_modules.stdout | default('')) ~ ' ' ~ (pc_system.stdout | default('')) }}"
+
     - name: "Extraire version / série / modèle (tolérant)"
       ansible.builtin.set_fact:
         ansible_net_version: >-
@@ -68,9 +72,10 @@
         ansible_net_serialnum: >-
           {{ (pc_system.stdout | default('') | regex_search('Serial Number\s*:\s*(\S+)', '\1')
               | default(['?'], true)) | first }}
+        # Modèle lisible (2930F, 3810M…) ; repli sur le SKU JLxxxx, sinon ?.
         ansible_net_model: >-
-          {{ (((pc_modules.stdout | default('')) ~ (pc_system.stdout | default('')))
-              | regex_search('(J[A-Z0-9]{4,})', '\1') | default(['?'], true)) | first }}
+          {{ (_pc_desc | regex_search('2930F|2930M|3810M|2920|2540|2530|2510|2960X|2960S|5400R|6300|6200|6100|8320|8325|8360|6400'))
+             | default((_pc_desc | regex_search('J[A-Z0-9]{4,}')) | default('?', true), true) }}
 
 # ---- Ligne CSV commune ------------------------------------------------------
 - name: "Construire la ligne de rapport (CSV)"

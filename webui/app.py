@@ -850,6 +850,7 @@ def firmware_dashboard():
                 status = "outdated"
                 n_old += 1
         rows.append({"host": d.get("host", "?"), "ip": d.get("ip", ""),
+                     "model": d.get("model", "?"),
                      "version": cur, "status": status, "ref": ref})
     rows.sort(key=lambda r: r["host"])
     return render_template("firmware.html", rows=rows, images=images,

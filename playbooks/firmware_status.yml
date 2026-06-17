@@ -27,6 +27,9 @@
           host: "{{ item }}"
           ip: "{{ hostvars[item].ansible_host | default('') }}"
           version: "{{ hostvars[item].ansible_net_version | default('?') }}"
+          model: >-
+            {{ hostvars[item].ansible_net_model
+               | default(hostvars[item].ansible_net_stacked_models[0] | default('?')) }}
       loop: "{{ groups['switches'] }}"
       when: hostvars[item].ansible_net_version is defined
 
