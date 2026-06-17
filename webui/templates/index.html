@@ -88,10 +88,17 @@
     <h2>{{ actions.firmware.label }}</h2>
     <p>{{ actions.firmware.desc }}</p>
     <form method="post" action="{{ url_for('run', action='firmware') }}">
-      <label>Fichier image (.swi sur le TFTP)</label>
+      <label>Fichier image (.swi déposé sur le TFTP)</label>
+      {% if fw_images %}
+      <select name="firmware_image" required>
+        {% for img in fw_images %}<option value="{{ img }}">{{ img }}</option>{% endfor %}
+      </select>
+      {% else %}
+      <p class="warn">Aucune image dans <code>firmware/images/</code> — dépose un <code>.swi</code> d'abord.</p>
       <input type="text" name="firmware_image" placeholder="WC_16_11_0014.swi" required>
-      <label>Version cible (vérif après reboot)</label>
-      <input type="text" name="firmware_target_version" placeholder="WC.16.11.0014">
+      {% endif %}
+      <label>Version cible <span class="muted">(optionnel, vérif après reboot)</span></label>
+      <input type="text" name="firmware_target_version" placeholder="WC.16.11.0030">
       <label>Switch (un seul)</label>
       <select name="target">
         {% for t in hosts %}<option value="{{ t[0] }}">{{ t[1] }}</option>{% endfor %}

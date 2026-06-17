@@ -541,8 +541,12 @@ def index():
     targets = load_targets()
     # Pour l'action "port" : uniquement des switchs individuels (valeur == libellé).
     hosts = [t for t in targets if t[0] == t[1]]
+    # Images firmware réellement présentes (nom de fichier exact) pour le menu.
+    fw_images = sorted(os.path.basename(p)
+                       for p in glob.glob(os.path.join(FIRMWARE_IMAGES_DIR, "*.swi")))
     return render_template("index.html", actions=ACTIONS,
-                           targets=targets, hosts=hosts, vlans=load_vlans())
+                           targets=targets, hosts=hosts, vlans=load_vlans(),
+                           fw_images=fw_images)
 
 
 def _read_json(path, default):
