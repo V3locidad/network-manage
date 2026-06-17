@@ -1,12 +1,23 @@
 ---
 # Place un port en accès dans un VLAN — Cisco IOS / IOS-XE (cli_command).
 
-# Nom d'interface : préfixe auto si on n'a saisi qu'un numéro (ex: 0/45).
-- name: "Cisco — nom d'interface complet"
+# Nom complet de l'interface détecté via 'show ip interface brief' (Gi/Te/Fa),
+# à partir du numéro saisi ; repli sur le préfixe par défaut si introuvable.
+- name: "Cisco — lister les interfaces"
+  ansible.netcommon.cli_command:
+    command: show ip interface brief
+  register: cisco_ifb
+  failed_when: false
+  changed_when: false
+
+- name: "Cisco — résoudre le nom complet de l'interface"
   ansible.builtin.set_fact:
     cisco_if: >-
-      {{ (cisco_interface_prefix ~ access_port_id)
-         if (access_port_id is match('^[0-9]')) else access_port_id }}
+      {{ (cisco_ifb.stdout | default('')
+          | regex_findall('(?m)^(\S+)')
+          | select('search', '(?:^|[^0-9])' ~ (access_port_id | regex_escape) ~ '$')
+          | list | first)
+         | default((cisco_interface_prefix ~ access_port_id), true) }}
 
 - name: "Cisco — {{ cisco_if }} en accès VLAN {{ access_vlan_id }}"
   ansible.netcommon.cli_command:

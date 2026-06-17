@@ -1,24 +1,47 @@
 ---
 # Activation/désactivation de port — Cisco IOS / IOS-XE (cli_command).
-# Protection rocade : liste manuelle uplink_ports (host_vars du switch).
+# - Détecte le nom COMPLET de l'interface (Gi/Te/Fa) via 'show ip interface brief'
+#   à partir du numéro saisi (ex: 0/45) -> on tape juste le numéro.
+# - Protection rocade : liste manuelle uplink_ports OU voisin CDP « Switch ».
 
-- name: "Protection rocade (liste manuelle uplink_ports)"
-  ansible.builtin.fail:
-    msg: >-
-      ⛔ Le port {{ port_id }} de {{ inventory_hostname }} est listé en
-      uplink_ports — désactivation refusée pour ne pas couper le réseau.
-  when:
-    - port_state == 'disable'
-    - (port_id | string) in (uplink_ports | default([]) | map('string') | list)
+- name: "Cisco — lister les interfaces"
+  ansible.netcommon.cli_command:
+    command: show ip interface brief
+  register: cisco_ifb
+  failed_when: false
+  changed_when: false
 
-# Nom d'interface : préfixe auto si on n'a saisi qu'un numéro (ex: 0/45),
-# sinon on garde tel quel (Gi0/45, GigabitEthernet0/45…).
-- name: "Cisco — nom d'interface complet"
+- name: "Cisco — résoudre le nom complet de l'interface"
   ansible.builtin.set_fact:
     cisco_if: >-
-      {{ (cisco_interface_prefix ~ port_id)
-         if (port_id is match('^[0-9]')) else port_id }}
+      {{ (cisco_ifb.stdout | default('')
+          | regex_findall('(?m)^(\S+)')
+          | select('search', '(?:^|[^0-9])' ~ (port_id | regex_escape) ~ '$')
+          | list | first)
+         | default((cisco_interface_prefix ~ port_id), true) }}
 
+# ---- Protection rocade (avant toute désactivation) ------------------------
+- name: "Cisco — voisin CDP du port {{ cisco_if }}"
+  ansible.netcommon.cli_command:
+    command: "show cdp neighbors {{ cisco_if }} detail"
+  register: cisco_cdp
+  failed_when: false
+  changed_when: false
+  when: port_state == 'disable'
+
+- name: "Cisco — INTERDIT : désactivation d'une rocade"
+  ansible.builtin.fail:
+    msg: >-
+      ⛔ Le port {{ cisco_if }} de {{ inventory_hostname }} est une ROCADE
+      (voisin switch détecté en CDP, ou listé en uplink_ports). Désactivation
+      refusée pour ne pas couper le réseau.
+  when:
+    - port_state == 'disable'
+    - >-
+      ((port_id | string) in (uplink_ports | default([]) | map('string') | list))
+      or (cisco_cdp.stdout | default('') is search('(?i)Capabilities:.*\bSwitch\b'))
+
+# ---- Application ----------------------------------------------------------
 - name: "Cisco — {{ 'désactiver' if port_state == 'disable' else 'activer' }} {{ cisco_if }}"
   ansible.netcommon.cli_command:
     command: "{{ item }}"
@@ -40,7 +63,6 @@
 - name: "Cisco — SIMULATION"
   ansible.builtin.debug:
     msg: >-
-      [DRY-RUN] {{ inventory_hostname }} (Cisco) : interface
-      {{ (cisco_interface_prefix ~ port_id) if (port_id is match('^[0-9]')) else port_id }}
+      [DRY-RUN] {{ inventory_hostname }} (Cisco) : interface {{ cisco_if }}
       serait « {{ port_state }} ». Rien n'a été écrit.
   when: port_dry_run | bool
