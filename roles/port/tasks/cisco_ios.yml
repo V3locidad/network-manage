@@ -50,7 +50,7 @@
     - port_state == 'disable'
     - >-
       ((port_id | string) in (uplink_ports | default([]) | map('string') | list))
-      or (cisco_cdp_block is search('(?i)Capabilities:.*\bSwitch\b'))
+      or (cisco_cdp_block is search('(?i)Capabilities:.*Switch'))
 
 # ---- Application ----------------------------------------------------------
 - name: "Cisco — {{ 'désactiver' if port_state == 'disable' else 'activer' }} {{ cisco_if }}"
