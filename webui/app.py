@@ -73,7 +73,10 @@ def inject_mode():
                                         and os.environ.get("LNMS_TOKEN")),
             # customer_id optionnel : découvert automatiquement par central.py.
             "central_configured": bool(os.environ.get("CENTRAL_CLIENT_ID")
-                                       and os.environ.get("CENTRAL_CLIENT_SECRET"))}
+                                       and os.environ.get("CENTRAL_CLIENT_SECRET")),
+            # Tag par défaut (install) pré-rempli dans le champ de la page Central.
+            "central_tag_key": os.environ.get("CENTRAL_TAG_KEY", ""),
+            "central_tag_value": os.environ.get("CENTRAL_TAG_VALUE", "")}
 
 
 @app.after_request

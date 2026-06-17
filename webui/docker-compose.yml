@@ -35,6 +35,9 @@ services:
       CENTRAL_CLIENT_ID: ${CENTRAL_CLIENT_ID:-}
       CENTRAL_CLIENT_SECRET: ${CENTRAL_CLIENT_SECRET:-}
       CENTRAL_BASE_URL: ${CENTRAL_BASE_URL:-https://global.api.greenlake.hpe.com}
+      # Tag par défaut appliqué à chaque enregistrement (défini à l'install).
+      CENTRAL_TAG_KEY: ${CENTRAL_TAG_KEY:-}
+      CENTRAL_TAG_VALUE: ${CENTRAL_TAG_VALUE:-}
     volumes:
       # Le projet Ansible (lecture seule) + les sauvegardes (écriture).
       - /opt/net-automation:/project:ro

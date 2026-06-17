@@ -14,6 +14,8 @@ Sans dépendance externe (urllib + json).
   CENTRAL_BASE_URL       défaut: https://global.api.greenlake.hpe.com
   CENTRAL_TOKEN_URL      (optionnel) force l'URL du token tenant
   CENTRAL_SSO_TOKEN_URL  défaut: https://sso.common.cloud.hpe.com/as/token.oauth2
+  CENTRAL_TAG_KEY        (optionnel) tag par défaut appliqué à chaque enregistrement
+  CENTRAL_TAG_VALUE      (optionnel) valeur du tag par défaut
 
 Usage :
   central.py token                 teste l'authentification
@@ -43,6 +45,9 @@ CLIENT_SECRET = os.environ.get("CENTRAL_CLIENT_SECRET", "")
 SSO_TOKEN_URL = os.environ.get(
     "CENTRAL_SSO_TOKEN_URL", "https://sso.common.cloud.hpe.com/as/token.oauth2")
 DEVICES_PATH = os.environ.get("CENTRAL_INVENTORY_PATH", "/devices/v1/devices")
+# Tag par défaut appliqué à chaque enregistrement (défini à l'install, dans .env).
+DEFAULT_TAG_KEY = os.environ.get("CENTRAL_TAG_KEY", "").strip()
+DEFAULT_TAG_VALUE = os.environ.get("CENTRAL_TAG_VALUE", "").strip()
 
 
 def tenant_token_url(customer_id):
@@ -234,6 +239,9 @@ def main():
                 k, v = arg.split("=", 1)
                 if k.strip():
                     tags[k.strip()] = v.strip()
+        # Aucun tag fourni en argument -> tag par défaut de l'install (.env).
+        if not tags and DEFAULT_TAG_KEY:
+            tags[DEFAULT_TAG_KEY] = DEFAULT_TAG_VALUE
         token = get_token()
         ok, msg = register_device(token, sys.argv[2].strip(), sys.argv[3].strip(),
                                   tags=tags or None)
