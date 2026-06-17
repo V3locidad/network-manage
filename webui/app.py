@@ -787,13 +787,15 @@ def central_page():
                            scanned=bool(data))
 
 
-def _central_register_one(serial, mac):
-    """Appelle central.py register. Renvoie (ok, message)."""
+def _central_register_one(serial, mac, tag=None):
+    """Appelle central.py register (+ tag clé=valeur optionnel). Renvoie (ok, message)."""
     try:
+        cmd = ["python", "central/central.py", "register", serial, mac]
+        if tag:
+            cmd.append(tag)  # "clé=valeur"
         out = subprocess.run(
-            ["python", "central/central.py", "register", serial, mac],
-            cwd=PROJECT_DIR, env=dict(os.environ),
-            capture_output=True, text=True, timeout=45)
+            cmd, cwd=PROJECT_DIR, env=dict(os.environ),
+            capture_output=True, text=True, timeout=60)
         msg = (out.stdout or out.stderr or "").strip()
         return out.returncode == 0, msg
     except Exception as e:  # noqa: BLE001
@@ -805,6 +807,10 @@ def _central_register_one(serial, mac):
 def central_register():
     """Enregistre dans GreenLake : un switch (serial+mac) ou tous les absents."""
     scope = request.form.get("scope", "one")
+    # Tag optionnel clé/valeur appliqué à chaque enregistrement.
+    tag_key = (request.form.get("tag_key") or "").strip()
+    tag_val = (request.form.get("tag_val") or "").strip()
+    tag = ("%s=%s" % (tag_key, tag_val)) if tag_key else None
     targets = []
     if scope == "all":
         data = _read_json(FIRMWARE_STATUS_JSON, [])
@@ -824,7 +830,7 @@ def central_register():
 
     results = []
     for serial, mac in targets:
-        ok, msg = _central_register_one(serial, mac)
+        ok, msg = _central_register_one(serial, mac, tag=tag)
         results.append("%s %s — %s" % ("✅" if ok else "❌", serial, msg))
     if not results:
         flash("Aucun switch à enregistrer (série/MAC manquante ?).")

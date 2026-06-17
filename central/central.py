@@ -20,7 +20,7 @@ Usage :
   central.py customer              affiche le platform_customer_id (auto-découvert)
   central.py inventory             liste les appareils enregistrés (série/MAC/modèle)
   central.py serials               n'affiche que les numéros de série enregistrés
-  central.py register <SÉRIE> <MAC>   enregistre un switch (POST + poll du résultat)
+  central.py register <SÉRIE> <MAC> [clé=valeur ...]   enregistre un switch (+ tags)
   central.py status <transactionId>   statut d'une opération async (diagnostic)
 """
 import base64
@@ -154,17 +154,20 @@ def normalize_mac(mac):
     return ":".join(hexd[i:i + 2] for i in range(0, 12, 2))
 
 
-def register_device(token, serial, mac):
+def register_device(token, serial, mac, tags=None):
     """POST /devices/v1/devices puis poll de l'opération async pour connaître le
-    VRAI résultat (le 202 ne garantit rien). Renvoie (ok: bool, message: str)."""
+    VRAI résultat (le 202 ne garantit rien). Renvoie (ok: bool, message: str).
+    tags : dict clé/valeur optionnel (ex. {"site": "AKR"})."""
     nmac = normalize_mac(mac)
     if not serial or serial == "?":
         return False, "numéro de série manquant"
     if not nmac:
         return False, "MAC invalide ou manquante (%r)" % mac
+    device = {"serialNumber": serial, "macAddress": nmac}
+    if tags:
+        device["tags"] = tags
     # L'API exige les 3 familles présentes ; celles qu'on n'ajoute pas = [].
-    body = {"compute": [], "storage": [],
-            "network": [{"serialNumber": serial, "macAddress": nmac}]}
+    body = {"compute": [], "storage": [], "network": [device]}
     try:
         _status, raw, location = api_post(DEVICES_PATH, token, body)
     except urllib.error.HTTPError as e:
@@ -223,9 +226,17 @@ def main():
 
     if cmd == "register":
         if len(sys.argv) < 4:
-            sys.exit("usage: central.py register <SÉRIE> <MAC>")
+            sys.exit("usage: central.py register <SÉRIE> <MAC> [clé=valeur ...]")
+        # Arguments supplémentaires clé=valeur -> tags.
+        tags = {}
+        for arg in sys.argv[4:]:
+            if "=" in arg:
+                k, v = arg.split("=", 1)
+                if k.strip():
+                    tags[k.strip()] = v.strip()
         token = get_token()
-        ok, msg = register_device(token, sys.argv[2].strip(), sys.argv[3].strip())
+        ok, msg = register_device(token, sys.argv[2].strip(), sys.argv[3].strip(),
+                                  tags=tags or None)
         print(("✅ " if ok else "❌ ") + msg)
         sys.exit(0 if ok else 1)
 
