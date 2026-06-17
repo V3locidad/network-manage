@@ -1,10 +1,10 @@
 ---
-# Connexion pour les switchs Aruba CX (via REST API, recommandé)
-ansible_connection: arubanetworks.aoscx.aoscx
+# Connexion pour les switchs Aruba CX en SSH/CLI (network_cli).
+# Évite la dépendance REST 'pyaoscx' et unifie les identifiants : mêmes que le
+# reste du parc via secret/switch_creds.yml (-e @...).
+ansible_connection: ansible.netcommon.network_cli
 ansible_network_os: arubanetworks.aoscx.aoscx
-ansible_user: "{{ vault_aruba_cx_user }}"
-ansible_password: "{{ vault_aruba_cx_pass }}"
-ansible_aoscx_validate_certs: false      # certif auto-signé par défaut
-ansible_aoscx_use_proxy: false
+ansible_user: "{{ vault_aruba_cx_user | default(omit) }}"
+ansible_password: "{{ vault_aruba_cx_pass | default(omit) }}"
 
 switch_vendor: aruba_cx

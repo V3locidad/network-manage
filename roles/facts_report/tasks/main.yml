@@ -17,22 +17,29 @@
     gather_subset: ["hardware", "default"]
   when: switch_vendor == 'cisco_nxos'
 
-# ---- Aruba CX (REST) --------------------------------------------------------
-- name: "Collecte des facts (Aruba CX)"
-  arubanetworks.aoscx.aoscx_facts:
-    gather_subset: ["software_version", "product_info"]
-  register: aoscx_facts_res
+# ---- Aruba CX (SSH/CLI) -----------------------------------------------------
+- name: "Aruba CX — show version / show system (SSH)"
+  ansible.netcommon.cli_command:
+    command: "{{ item }}"
+  loop:
+    - show version
+    - show system
+  register: cx_show
   failed_when: false
+  changed_when: false
   when: switch_vendor == 'aruba_cx'
 
-- name: "Aruba CX — garantir ansible_net_version (noms de fact variables)"
+- name: "Aruba CX — extraire version / modèle / série"
   ansible.builtin.set_fact:
-    ansible_net_version: >-
-      {{ ansible_net_version
-         | default(ansible_net_software_version
-           | default((aoscx_facts_res.ansible_facts | default({})).ansible_net_version
-             | default((aoscx_facts_res.ansible_facts | default({})).ansible_net_software_version
-               | default('?')))) }}
+    _cx_ver_out: "{{ cx_show.results[0].stdout | default('') }}"
+    _cx_sys_out: "{{ cx_show.results[1].stdout | default('') }}"
+  when: switch_vendor == 'aruba_cx'
+
+- name: "Aruba CX — facts"
+  ansible.builtin.set_fact:
+    ansible_net_version: "{{ (_cx_ver_out | regex_search('(?i)Version\\s*:\\s*(\\S+)', '\\1') | default(['?'], true)) | first }}"
+    ansible_net_model: "{{ (_cx_sys_out | regex_search('(?i)Product Name\\s*:\\s*(.+)', '\\1') | default(['?'], true)) | first | trim }}"
+    ansible_net_serialnum: "{{ (_cx_sys_out | regex_search('(?i)Serial Number\\s*:\\s*(\\S+)', '\\1') | default(['?'], true)) | first }}"
   when: switch_vendor == 'aruba_cx'
 
 # ---- Aruba 2930F / AOS-Switch (SSH/CLI) -------------------------------------
