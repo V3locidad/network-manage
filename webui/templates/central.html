@@ -37,7 +37,7 @@
       {% set registrables = rows | selectattr('can_register') | list %}
       {% if registrables %}
         <form method="post" action="{{ url_for('central_register') }}"
-              onsubmit="return withTag(this, 'Enregistrer {{ registrables|length }} switch(s) absent(s) dans HPE GreenLake ? Cette action écrit sur ton compte.');"
+              onsubmit="return confirm('Enregistrer {{ registrables|length }} switch(s) absent(s) dans HPE GreenLake ? Cette action écrit sur ton compte.');"
               style="margin:0;">
           <input type="hidden" name="scope" value="all">
           <button type="submit" style="width:auto;margin:0;padding:8px 14px;">
@@ -47,15 +47,10 @@
       {% endif %}
     </div>
 
-    {% if registrables %}
-    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 14px;
-                padding:10px 12px;background:#0f172a;border:1px solid #334155;border-radius:8px;">
-      <span class="muted" style="font-size:12.5px;">Tag appliqué à l'enregistrement :</span>
-      <input id="tagKey" placeholder="clé (ex. site)" value="{{ central_tag_key }}"
-             style="width:auto;flex:1;min-width:120px;">
-      <input id="tagVal" placeholder="valeur (ex. AKR)" value="{{ central_tag_value }}"
-             style="width:auto;flex:1;min-width:120px;">
-    </div>
+    {% if central_tag_key %}
+    <p class="muted" style="font-size:12px;margin:0 0 14px;">
+      Tag appliqué automatiquement : <code>{{ central_tag_key }}={{ central_tag_value }}</code>
+    </p>
     {% endif %}
     <table>
       <tr><th>Switch</th><th>IP</th><th>Modèle</th><th>N° de série</th><th>MAC</th><th>Central</th><th></th></tr>
@@ -73,7 +68,7 @@
         <td style="text-align:right;">
           {% if r.can_register %}
             <form method="post" action="{{ url_for('central_register') }}"
-                  onsubmit="return withTag(this, 'Enregistrer {{ r.host }} ({{ r.serial }}) dans HPE GreenLake ?');"
+                  onsubmit="return confirm('Enregistrer {{ r.host }} ({{ r.serial }}) dans HPE GreenLake ?');"
                   style="margin:0;">
               <input type="hidden" name="scope" value="one">
               <input type="hidden" name="serial" value="{{ r.serial }}">
@@ -90,23 +85,5 @@
       {% endfor %}
     </table>
   </div>
-
-  <script>
-    // Confirme l'action, puis injecte le tag (clé/valeur) dans le formulaire soumis.
-    function withTag(form, msg) {
-      if (!confirm(msg)) return false;
-      var k = (document.getElementById('tagKey') || {}).value;
-      var v = (document.getElementById('tagVal') || {}).value;
-      if (k && k.trim()) {
-        var ik = document.createElement('input');
-        ik.type = 'hidden'; ik.name = 'tag_key'; ik.value = k.trim();
-        form.appendChild(ik);
-        var iv = document.createElement('input');
-        iv.type = 'hidden'; iv.name = 'tag_val'; iv.value = (v || '').trim();
-        form.appendChild(iv);
-      }
-      return true;
-    }
-  </script>
 {% endif %}
 {% endblock %}
