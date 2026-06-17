@@ -4,11 +4,15 @@
 <h2>État firmware du parc</h2>
 
 <div class="card" style="margin-bottom:16px;">
-  {% if target %}
-    <p style="margin:0 0 8px;">Version de référence (image déposée) :
-      <strong style="color:#60a5fa;">{{ target }}</strong></p>
+  {% if targets %}
+    <p style="margin:0 0 4px;">Références par famille de firmware :</p>
+    <p style="margin:0 0 8px;">
+      {% for fam, ver in targets.items() %}<span class="badge b-run" style="margin-right:6px;">{{ fam }} → {{ ver }}</span>{% endfor %}
+    </p>
     <p style="margin:0;color:#94a3b8;font-size:13px;">
-      Images sur le TFTP : {{ images | map(attribute='file') | join(', ') }}</p>
+      Images sur le TFTP : {{ images | map(attribute='file') | join(', ') }}.
+      La comparaison se fait par famille (un switch d'une famille sans image →
+      « pas de référence »).</p>
   {% else %}
     <p class="warn" style="margin:0;">Aucune image <code>.swi</code> déposée dans
       <code>firmware/images/</code> — impossible de comparer. Dépose une image
@@ -17,7 +21,8 @@
   {% if scanned %}
     <p style="margin:10px 0 0;">
       <span style="color:#4ade80;">{{ n_ok }} à jour</span> ·
-      <span style="color:#fbbf24;">{{ n_old }} à mettre à jour</span>
+      <span style="color:#fbbf24;">{{ n_old }} à mettre à jour</span> ·
+      <span style="color:#94a3b8;">{{ n_noref }} sans référence</span>
     </p>
   {% endif %}
   <form method="post" action="{{ url_for('run', action='firmware_status') }}" style="margin-top:12px;">
@@ -44,9 +49,9 @@
       <td style="padding:8px;font-family:monospace;">{{ r.version }}</td>
       <td style="padding:8px;">
         {% if r.status == 'ok' %}<span style="color:#4ade80;">✅ À jour</span>
-        {% elif r.status == 'outdated' %}<span style="color:#fbbf24;">⚠️ À mettre à jour</span>
+        {% elif r.status == 'outdated' %}<span style="color:#fbbf24;">⚠️ À mettre à jour → {{ r.ref }}</span>
         {% elif r.status == 'unknown' %}<span style="color:#94a3b8;">? Inconnu</span>
-        {% else %}<span style="color:#94a3b8;">— (pas de référence)</span>
+        {% else %}<span style="color:#94a3b8;">— pas de référence (famille {{ r.version.split('.')[0] }})</span>
         {% endif %}
       </td>
     </tr>

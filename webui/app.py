@@ -335,6 +335,14 @@ def swi_to_version(filename):
     return filename.rsplit(".swi", 1)[0].replace("_", ".")
 
 
+def _fw_family(version):
+    """Famille de firmware = préfixe avant le 1er point (WC, KB, FL, RA…).
+    Sert à comparer un switch UNIQUEMENT à une image de sa propre famille
+    (un .swi WC ne concerne pas un KB/Cisco/Aruba)."""
+    v = (version or "").strip()
+    return v.split(".", 1)[0] if "." in v else v
+
+
 def load_switch_hosts():
     """Liste [{name, ip}] des switchs depuis l'inventaire."""
     out = []
@@ -560,20 +568,25 @@ def _last_backups():
 def dashboard():
     total = len(load_switch_hosts())
 
-    # --- Firmware (dernier scan) ---
-    images = [os.path.basename(p)
-              for p in glob.glob(os.path.join(FIRMWARE_IMAGES_DIR, "*.swi"))]
-    target = max((swi_to_version(i) for i in images), default=None)
+    # --- Firmware (dernier scan) — comparaison par famille de firmware ---
+    targets = {}
+    for p in glob.glob(os.path.join(FIRMWARE_IMAGES_DIR, "*.swi")):
+        ver = swi_to_version(os.path.basename(p))
+        fam = _fw_family(ver)
+        if fam and (fam not in targets or ver > targets[fam]):
+            targets[fam] = ver
     fw = _read_json(FIRMWARE_STATUS_JSON, [])
     fw_ok = fw_old = fw_unknown = 0
     for d in fw:
         cur = (d.get("version") or "?").strip()
-        if not target or cur in ("", "?"):
-            fw_unknown += 1
-        elif cur == target:
+        ref = targets.get(_fw_family(cur)) if cur not in ("", "?") else None
+        if cur in ("", "?") or ref is None:
+            fw_unknown += 1        # inconnu OU pas d'image pour cette famille
+        elif cur == ref:
             fw_ok += 1
         else:
             fw_old += 1
+    target = bool(targets)
 
     # --- Conformité (dernier audit) ---
     audit = _read_json("/backups/audit.json", [])
@@ -794,12 +807,18 @@ def settings():
 @app.route("/firmware")
 @login_required
 def firmware_dashboard():
-    # Image(s) de référence déposée(s) sur le TFTP -> version cible.
+    # Image(s) de référence déposée(s) sur le TFTP. La comparaison se fait PAR
+    # FAMILLE de firmware (préfixe avant le 1er point : WC, KB, FL, …) car une
+    # image WC (2930F) ne concerne pas un KB (3810M), du Cisco, de l'Aruba CX…
     images = []
+    targets = {}            # famille -> version de référence (la plus haute)
     for path in sorted(glob.glob(os.path.join(FIRMWARE_IMAGES_DIR, "*.swi"))):
         name = os.path.basename(path)
-        images.append({"file": name, "version": swi_to_version(name)})
-    target = max((i["version"] for i in images), default=None)
+        ver = swi_to_version(name)
+        fam = _fw_family(ver)
+        images.append({"file": name, "version": ver, "family": fam})
+        if fam and (fam not in targets or ver > targets[fam]):
+            targets[fam] = ver
 
     # Versions collectées sur les switchs (dernier scan).
     data = []
@@ -809,25 +828,29 @@ def firmware_dashboard():
     except (OSError, ValueError):
         data = []
 
-    rows, n_ok, n_old = [], 0, 0
+    rows, n_ok, n_old, n_noref = [], 0, 0, 0
     for d in data:
         cur = (d.get("version") or "?").strip()
-        if not target:
-            status = "noref"
-        elif cur in ("", "?"):
+        ref = None
+        if cur in ("", "?"):
             status = "unknown"
-        elif cur == target:
-            status = "ok"
-            n_ok += 1
         else:
-            status = "outdated"
-            n_old += 1
+            ref = targets.get(_fw_family(cur))
+            if ref is None:
+                status = "noref"
+                n_noref += 1
+            elif cur == ref:
+                status = "ok"
+                n_ok += 1
+            else:
+                status = "outdated"
+                n_old += 1
         rows.append({"host": d.get("host", "?"), "ip": d.get("ip", ""),
-                     "version": cur, "status": status})
+                     "version": cur, "status": status, "ref": ref})
     rows.sort(key=lambda r: r["host"])
     return render_template("firmware.html", rows=rows, images=images,
-                           target=target, n_ok=n_ok, n_old=n_old,
-                           scanned=bool(data))
+                           targets=targets, n_ok=n_ok, n_old=n_old,
+                           n_noref=n_noref, scanned=bool(data))
 
 
 @app.route("/terminal")
