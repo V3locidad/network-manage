@@ -12,7 +12,11 @@ ansible_password: "{{ vault_cisco_pass | default(omit) }}"
 # Si le compte ouvre déjà en privilège 15, mets cisco_become=false (-e).
 ansible_become: "{{ cisco_become | default(true) }}"
 ansible_become_method: enable
-ansible_become_password: "{{ vault_cisco_enable | default(ansible_password | default(omit)) }}"
+# Mot de passe enable : cisco_enable_password (secret/switch_creds.yml) en
+# priorité, sinon le mot de passe de connexion. Si pas d'enable, -e cisco_become=false.
+ansible_become_password: >-
+  {{ cisco_enable_password
+     | default(vault_cisco_enable | default(ansible_password | default(omit))) }}
 
 # Identifiant de "vendor" utilisé par les rôles pour l'aiguillage.
 switch_vendor: cisco_ios
