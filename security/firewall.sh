@@ -36,6 +36,13 @@ echo "==> Ports web publiés par Docker (443 / 8443) via DOCKER-USER"
 $IPT -N DOCKER-USER 2>/dev/null || true
 $IPT -F DOCKER-USER
 $IPT -A DOCKER-USER -m conntrack --ctstate ESTABLISHED,RELATED -j RETURN
+# Ne PAS filtrer le trafic SORTANT des conteneurs (ex: webui -> API GreenLake
+# en HTTPS/443). On laisse passer tout ce qui vient des réseaux Docker ; la
+# règle DROP ne concerne ainsi que l'entrée externe vers Caddy.
+for sub in $(docker network inspect $(docker network ls -q) \
+             -f '{{range .IPAM.Config}}{{.Subnet}} {{end}}' 2>/dev/null); do
+  $IPT -A DOCKER-USER -s "$sub" -j RETURN
+done
 for net in "${ADMIN_NETS[@]}"; do
   $IPT -A DOCKER-USER -s "$net" -p tcp -m multiport --dports 443,8443 -j RETURN
 done
