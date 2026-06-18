@@ -82,35 +82,8 @@
     </form>
   </div>
 
-  <!-- Firmware -->
-  <div class="card">
-    <div class="icon">{{ actions.firmware.icon }}</div>
-    <h2>{{ actions.firmware.label }}</h2>
-    <p>{{ actions.firmware.desc }}</p>
-    <form method="post" action="{{ url_for('run', action='firmware') }}">
-      <label>Fichier image (.swi déposé sur le TFTP)</label>
-      {% if fw_images %}
-      <select name="firmware_image" required>
-        {% for img in fw_images %}<option value="{{ img }}">{{ img }}</option>{% endfor %}
-      </select>
-      {% else %}
-      <p class="warn">Aucune image dans <code>firmware/images/</code> — dépose un <code>.swi</code> d'abord.</p>
-      <input type="text" name="firmware_image" placeholder="WC_16_11_0014.swi" required>
-      {% endif %}
-      <label>Version cible <span class="muted">(optionnel, vérif après reboot)</span></label>
-      <input type="text" name="firmware_target_version" placeholder="WC.16.11.0030">
-      <label>Switch (un seul)</label>
-      <select name="target">
-        {% for t in hosts %}<option value="{{ t[0] }}">{{ t[1] }}</option>{% endfor %}
-      </select>
-      <div class="check">
-        <input type="checkbox" name="firmware_check" id="fchk" checked>
-        <label for="fchk" style="margin:0;">Simulation (pas de reboot)</label>
-      </div>
-      <p class="warn">⚠️ Décocher = reboot du switch (~2-3 min de coupure).</p>
-      <button type="submit">Lancer</button>
-    </form>
-  </div>
+  <!-- La mise à jour firmware se fait désormais depuis « État du parc »
+       (sélection multiple + image auto par famille). -->
 
   <!-- Port -> VLAN d'accès -->
   <div class="card">
