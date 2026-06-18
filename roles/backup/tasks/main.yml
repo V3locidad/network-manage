@@ -25,9 +25,15 @@
     command: "show running-config"
   register: cfg_cli
 
-- name: "Normaliser la sortie de config"
+# AOS-Switch : « show running-config » préfixe la sortie par « Running
+# configuration: » + ligne vide. Ce préfixe rend le fichier INVALIDE pour
+# « copy tftp startup-config » (le switch répond « Wrong file »). On retire tout
+# ce qui précède la ligne « ; … Configuration Editor; ». Cisco/Aruba CX : inchangé.
+- name: "Normaliser la sortie de config (retirer l'en-tête AOS-Switch)"
   ansible.builtin.set_fact:
-    running_config: "{{ cfg_cli.stdout }}"
+    running_config: >-
+      {{ cfg_cli.stdout | regex_replace('(?s)^.*?(;[^\\n]*Configuration Editor;)', '\\1')
+         if switch_vendor == 'procurve' else cfg_cli.stdout }}
 
 - name: "Écrire la sauvegarde sur le contrôleur"
   ansible.builtin.copy:
