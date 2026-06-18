@@ -36,6 +36,12 @@
   when: firmware_check | bool
 
 # ---- APPLICATION RÉELLE ---------------------------------------------------
+# Version attendue déduite du nom de fichier (WC_16_11_0030.swi -> WC.16.11.0030).
+- name: "Version firmware attendue (depuis le nom de l'image)"
+  ansible.builtin.set_fact:
+    firmware_expected_version: "{{ firmware_image | regex_replace('\\.swi$', '') | regex_replace('_', '.') }}"
+  when: not (firmware_check | bool)
+
 - name: "Copier l'image en flash {{ firmware_partition }} (plusieurs minutes)"
   ansible.netcommon.cli_command:
     command: "copy tftp flash {{ firmware_tftp_server }} {{ firmware_image }} {{ firmware_partition }}"
@@ -47,6 +53,44 @@
     check_all: true
   vars:
     ansible_command_timeout: 900
+  register: fw_copy
+  failed_when: false
+  when: not (firmware_check | bool)
+
+- name: "Sortie de la copie TFTP (diagnostic)"
+  ansible.builtin.debug:
+    msg: "{{ fw_copy.stdout | default('(pas de sortie)') }}"
+  when: not (firmware_check | bool)
+
+# ⚠️ SÉCURITÉ ANTI-DOWNGRADE : on relit la flash et on VÉRIFIE que la partition
+# contient bien la version attendue AVANT de basculer le boot. Si la copie a
+# échoué (Transport error, image absente…), on s'arrête ici — le boot n'est PAS
+# touché, donc pas de redémarrage sur une image vieille/absente.
+- name: "Relire la flash après copie"
+  ansible.netcommon.cli_command:
+    command: show flash
+  register: fw_postcopy
+  changed_when: false
+  when: not (firmware_check | bool)
+
+- name: "Version réellement écrite dans la flash {{ firmware_partition }}"
+  ansible.builtin.set_fact:
+    fw_copied: >-
+      {{ (fw_postcopy.stdout | regex_search(firmware_partition | capitalize ~ ' Image\s*:\s*\d+\s+\S+\s+(\S+)', '\1')
+          | default(['?'], true)) | first }}
+  when: not (firmware_check | bool)
+
+- name: "Vérifier que l'image a bien été écrite (sinon ON N'ÉCRIT PAS le boot)"
+  ansible.builtin.assert:
+    that:
+      - fw_copied == firmware_expected_version
+    fail_msg: >-
+      ❌ La copie de l'image a ÉCHOUÉ : la flash {{ firmware_partition }} contient
+      « {{ fw_copied }} », pas « {{ firmware_expected_version }} ». Le boot n'est
+      PAS basculé (aucun downgrade). Sortie de la copie : « {{ fw_copy.stdout | default('') }} ».
+      Vérifie que le switch atteint {{ firmware_tftp_server }} (UDP/69) et que
+      « {{ firmware_image }} » est bien servi à la racine TFTP.
+    success_msg: "✅ Image {{ firmware_expected_version }} écrite en flash {{ firmware_partition }} — bascule du boot autorisée."
   when: not (firmware_check | bool)
 
 - name: "Basculer le boot sur la flash {{ firmware_partition }} + reboot"
