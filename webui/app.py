@@ -5,7 +5,9 @@
 Login partagé, logs en direct (SSE). Aucune dépendance externe lourde.
 """
 import base64
+import csv
 import glob
+import io
 import json
 import os
 import queue
@@ -803,6 +805,31 @@ def _central_register_one(serial, mac, tag=None):
         return out.returncode == 0, msg
     except Exception as e:  # noqa: BLE001
         return False, str(e)
+
+
+@app.route("/central/export.csv")
+@login_required
+def central_export_csv():
+    """Exporte les switchs Aruba/ProCurve au format d'import HPE Support Center :
+    device nickname, serial number, description, install site location name."""
+    data = _read_json(FIRMWARE_STATUS_JSON, [])
+    # Nom du site : valeur du tag par défaut, sinon la clé (ex. « Kastler »).
+    site = (os.environ.get("CENTRAL_TAG_VALUE", "").strip()
+            or os.environ.get("CENTRAL_TAG_KEY", "").strip())
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["device nickname", "serial number", "description",
+                "install site location name"])
+    for d in sorted(data, key=lambda x: x.get("host", "")):
+        if d.get("vendor") not in ("procurve", "aruba_cx"):
+            continue
+        serial = (d.get("serial") or "").strip()
+        if not serial or serial == "?":
+            continue  # serial obligatoire côté HPE
+        w.writerow([d.get("host", ""), serial, d.get("model", ""), site])
+    return Response(
+        buf.getvalue(), mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=switchs_hpe.csv"})
 
 
 @app.route("/central/register", methods=["POST"])

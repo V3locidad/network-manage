@@ -35,16 +35,23 @@
         <span class="muted">/ {{ total }} switchs Aruba</span>
       </p>
       {% set registrables = rows | selectattr('can_register') | list %}
-      {% if registrables %}
-        <form method="post" action="{{ url_for('central_register') }}"
-              onsubmit="return confirm('Enregistrer {{ registrables|length }} switch(s) absent(s) dans HPE GreenLake ? Cette action écrit sur ton compte.');"
-              style="margin:0;">
-          <input type="hidden" name="scope" value="all">
-          <button type="submit" style="width:auto;margin:0;padding:8px 14px;">
-            Enregistrer les {{ registrables|length }} absents
-          </button>
-        </form>
-      {% endif %}
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <a href="{{ url_for('central_export_csv') }}"
+           style="text-decoration:none;background:#334155;color:#e2e8f0;
+                  padding:8px 14px;border-radius:8px;font-size:13.5px;font-weight:600;">
+          ⬇ Exporter pour HPE (CSV)
+        </a>
+        {% if registrables %}
+          <form method="post" action="{{ url_for('central_register') }}"
+                onsubmit="return confirm('Enregistrer {{ registrables|length }} switch(s) absent(s) dans HPE GreenLake ? Cette action écrit sur ton compte.');"
+                style="margin:0;">
+            <input type="hidden" name="scope" value="all">
+            <button type="submit" style="width:auto;margin:0;padding:8px 14px;">
+              Enregistrer les {{ registrables|length }} absents
+            </button>
+          </form>
+        {% endif %}
+      </div>
     </div>
 
     {% if central_tag_key %}
