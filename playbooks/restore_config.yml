@@ -54,37 +54,69 @@
         - switch_vendor == 'aruba_cx'
 
     # ---- ProCurve / AOS-Switch -------------------------------------------
-    # copy tftp startup-config demande souvent une confirmation (« Continue
-    # (y/n)? » / reboot). On répond « y ». failed_when:false car selon le modèle
-    # le switch peut redémarrer immédiatement et couper la session SSH.
+    # copy tftp startup-config peut demander une confirmation (« Continue
+    # (y/n)? »). On répond « y ». On CAPTURE la sortie pour détecter un échec
+    # TFTP (sinon Ansible afficherait « ok » alors que rien n'a été transféré).
     - name: "ProCurve — charger en startup-config (TFTP)"
       ansible.netcommon.cli_command:
         command: "copy tftp startup-config {{ restore_tftp_server }} {{ _tftp_path }}"
         prompt:
-          - "(?i)continue|\\[y/n\\]|y/n|reboot|press any key"
+          - "(?i)continue|\\[y/n\\]|y/n|press any key"
         answer:
           - "y"
         check_all: true
       vars:
         ansible_command_timeout: 180
+      register: pc_copy
       failed_when: false
       when:
         - not (restore_dry_run | bool)
         - switch_vendor == 'procurve'
 
+    - name: "ProCurve — sortie de la copie TFTP (diagnostic)"
+      ansible.builtin.debug:
+        msg: "{{ pc_copy.stdout | default('(pas de sortie)') }}"
+      when:
+        - not (restore_dry_run | bool)
+        - switch_vendor == 'procurve'
+
+    - name: "ProCurve — vérifier que la copie TFTP a réussi"
+      ansible.builtin.assert:
+        that:
+          - pc_copy.stdout is defined
+          - not (pc_copy.stdout | regex_search('(?i)unable|fail|denied|timed?\s*out|not found|no such|invalid|error|exceeded'))
+        fail_msg: >-
+          La copie TFTP a échoué — le switch n'a PAS reçu la config. Sortie :
+          « {{ pc_copy.stdout | default('') }} ». Vérifie que le switch atteint
+          {{ restore_tftp_server }} (UDP/69) et que « {{ _tftp_path }} » existe.
+        success_msg: "Copie TFTP acceptée par le switch."
+      when:
+        - not (restore_dry_run | bool)
+        - switch_vendor == 'procurve'
+
+    # On répond « n » à « save current configuration » (NE PAS écraser la
+    # startup-config qu'on vient de restaurer), puis « y » pour rebooter.
     - name: "ProCurve — recharger (applique la startup-config)"
       ansible.netcommon.cli_command:
         command: reload
         prompt:
-          - "save current configuration"
-          - "continue"
+          - "(?i)save current configuration"
+          - "(?i)continue|reboot"
         answer:
           - "n"
           - "y"
         check_all: true
       vars:
         ansible_command_timeout: 120
+      register: pc_reload
       failed_when: false
+      when:
+        - not (restore_dry_run | bool)
+        - switch_vendor == 'procurve'
+
+    - name: "ProCurve — sortie du reload (diagnostic)"
+      ansible.builtin.debug:
+        msg: "{{ pc_reload.stdout | default('(reboot — session coupée, normal)') }}"
       when:
         - not (restore_dry_run | bool)
         - switch_vendor == 'procurve'
