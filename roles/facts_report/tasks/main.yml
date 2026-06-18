@@ -91,7 +91,7 @@
         ansible_net_model: >-
           {{ {'WC': '2930F', 'WL': '2930M', 'WB': '2920', 'YC': '2540',
               'YA': '2530', 'YB': '2530', 'RA': '2620', 'KA': '3800',
-              'KB': '3810M'}.get(
+              'KB': '3810M', 'U': '2510G', 'Q': '2510', 'S': '2520'}.get(
               (ansible_net_version | default('') | regex_search('^([A-Za-z]+)', '\1')
                | default([''], true) | first | upper), '?') }}
       when: (ansible_net_model | default('?')) in ['?', '']
