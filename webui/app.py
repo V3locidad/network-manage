@@ -766,29 +766,36 @@ def central_registered_serials():
 @login_required
 def central_page():
     # Seuls les switchs Aruba/ProCurve peuvent être dans Aruba Central.
+    configured = bool(os.environ.get("CENTRAL_CLIENT_ID")
+                      and os.environ.get("CENTRAL_CLIENT_SECRET"))
     data = _read_json(FIRMWARE_STATUS_JSON, [])
     aruba = [d for d in data if d.get("vendor") in ("procurve", "aruba_cx")]
-    registered = central_registered_serials()
+    # On n'interroge GreenLake que si configuré (sinon la page sert juste à
+    # l'export CSV pour le Support Center HPE).
+    registered = central_registered_serials() if configured else None
     rows = []
     for d in aruba:
         serial = (d.get("serial") or "?").strip()
-        if registered is None:
+        mac = (d.get("mac") or "").strip()
+        if not configured:
+            state = "unconfigured"
+        elif registered is None:
             state = "error"
         elif serial in registered:
             state = "registered"
         else:
             state = "absent"
-        mac = (d.get("mac") or "").strip()
         rows.append({"host": d.get("host", "?"), "ip": d.get("ip", ""),
                      "model": d.get("model", "?"), "serial": serial,
                      "mac": mac, "state": state,
-                     # Enregistrable = absent, série connue, MAC connue.
-                     "can_register": (state == "absent" and serial not in ("", "?")
-                                      and bool(mac))})
+                     # Enregistrable = configuré, absent, série + MAC connues.
+                     "can_register": (configured and state == "absent"
+                                      and serial not in ("", "?") and bool(mac))})
     rows.sort(key=lambda r: r["host"])
     n_reg = sum(1 for r in rows if r["state"] == "registered")
     return render_template("central.html", rows=rows, n_reg=n_reg,
-                           total=len(rows), error=(registered is None),
+                           total=len(rows),
+                           error=(configured and registered is None),
                            scanned=bool(data))
 
 

@@ -14,25 +14,39 @@
   {% endif %}
 {% endwith %}
 
-{% if not central_configured %}
-  <div class="card"><p class="warn" style="margin:0;">Central non configuré.
-    Renseigne <code>CENTRAL_CUSTOMER_ID</code>, <code>CENTRAL_CLIENT_ID</code> et
-    <code>CENTRAL_CLIENT_SECRET</code> dans <code>webui/.env</code>, puis
-    <code>docker compose up -d</code>.</p></div>
-{% elif error %}
-  <div class="card"><p class="warn" style="margin:0;">Impossible d'interroger
-    Central (identifiants invalides, ou pas d'accès Internet depuis le conteneur).
-    Vérifie les variables <code>CENTRAL_*</code> et la connectivité.</p></div>
-{% elif not scanned %}
+{% if not scanned %}
   <div class="card"><p class="muted">Aucune donnée de parc. Lance d'abord
     « État du Parc → Rafraîchir l'état » pour collecter les numéros de série.</p></div>
+{% elif total == 0 %}
+  <div class="card"><p class="muted">Aucun switch Aruba/ProCurve dans le parc.</p></div>
 {% else %}
+  {% if not central_configured %}
+    <div class="card" style="margin-bottom:18px;">
+      <p class="muted" style="margin:0;font-size:13px;">
+        GreenLake non configuré : l'<b>export CSV</b> ci-dessous reste disponible
+        (pour le Support Center HPE). Pour activer l'enregistrement dans Central,
+        renseigne <code>CENTRAL_CLIENT_ID</code> et <code>CENTRAL_CLIENT_SECRET</code>
+        dans <code>webui/.env</code> puis <code>docker compose up -d</code>.
+      </p>
+    </div>
+  {% elif error %}
+    <div class="card" style="margin-bottom:18px;">
+      <p class="warn" style="margin:0;">Impossible d'interroger Central (identifiants
+        invalides, ou pas d'accès Internet depuis le conteneur). L'export CSV reste
+        disponible.</p>
+    </div>
+  {% endif %}
+
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
       <p style="margin:0;">
-        <span style="color:#4ade80;">{{ n_reg }} enregistré(s)</span> ·
-        <span style="color:#fbbf24;">{{ total - n_reg }} absent(s)</span>
-        <span class="muted">/ {{ total }} switchs Aruba</span>
+        {% if central_configured and not error %}
+          <span style="color:#4ade80;">{{ n_reg }} enregistré(s)</span> ·
+          <span style="color:#fbbf24;">{{ total - n_reg }} absent(s)</span>
+          <span class="muted">/ {{ total }} switchs Aruba</span>
+        {% else %}
+          <span class="muted">{{ total }} switchs Aruba/ProCurve</span>
+        {% endif %}
       </p>
       {% set registrables = rows | selectattr('can_register') | list %}
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
@@ -41,20 +55,26 @@
                   padding:8px 14px;border-radius:8px;font-size:13.5px;font-weight:600;">
           ⬇ Exporter pour HPE (CSV)
         </a>
-        {% if registrables %}
+        {% if central_configured %}
           <form method="post" action="{{ url_for('central_register') }}"
                 onsubmit="return confirm('Enregistrer {{ registrables|length }} switch(s) absent(s) dans HPE GreenLake ? Cette action écrit sur ton compte.');"
                 style="margin:0;">
             <input type="hidden" name="scope" value="all">
-            <button type="submit" style="width:auto;margin:0;padding:8px 14px;">
+            <button type="submit" {% if not registrables %}disabled{% endif %}
+                    style="width:auto;margin:0;padding:8px 14px;{% if not registrables %}opacity:.45;cursor:not-allowed;{% endif %}">
               Enregistrer les {{ registrables|length }} absents
             </button>
           </form>
+        {% else %}
+          <button type="button" disabled title="Configure GreenLake (CENTRAL_CLIENT_ID / SECRET) pour activer"
+                  style="width:auto;margin:0;padding:8px 14px;opacity:.45;cursor:not-allowed;">
+            Enregistrer les absents
+          </button>
         {% endif %}
       </div>
     </div>
 
-    {% if central_tag_key %}
+    {% if central_configured and central_tag_key %}
     <p class="muted" style="font-size:12px;margin:0 0 14px;">
       Tag appliqué automatiquement :
       <code>{{ central_tag_key }}{% if central_tag_value %}={{ central_tag_value }}{% endif %}</code>
@@ -70,11 +90,18 @@
         <td style="font-family:monospace;">{{ r.serial }}</td>
         <td style="font-family:monospace;" class="muted">{{ r.mac or '—' }}</td>
         <td>
-          {% if r.state == 'registered' %}<span class="badge b-ok">✅ enregistré</span>
+          {% if not central_configured %}<span class="muted">—</span>
+          {% elif r.state == 'registered' %}<span class="badge b-ok">✅ enregistré</span>
+          {% elif r.state == 'error' %}<span class="muted">?</span>
           {% else %}<span class="badge b-amber">⚠️ absent</span>{% endif %}
         </td>
         <td style="text-align:right;">
-          {% if r.can_register %}
+          {% if not central_configured %}
+            <button type="button" disabled title="Configure GreenLake pour activer l'enregistrement"
+                    style="width:auto;margin:0;padding:5px 12px;font-size:12px;opacity:.4;cursor:not-allowed;">
+              Enregistrer
+            </button>
+          {% elif r.can_register %}
             <form method="post" action="{{ url_for('central_register') }}"
                   onsubmit="return confirm('Enregistrer {{ r.host }} ({{ r.serial }}) dans HPE GreenLake ?');"
                   style="margin:0;">
