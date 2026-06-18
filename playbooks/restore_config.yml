@@ -80,16 +80,20 @@
         - not (restore_dry_run | bool)
         - switch_vendor == 'procurve'
 
-    - name: "ProCurve — vérifier que la copie TFTP a réussi"
+    # On échoue UNIQUEMENT si la sortie contient une vraie erreur. Une sortie
+    # VIDE = succès : le transfert a réussi et le switch a rebooté tout de suite
+    # (« Device may be rebooted… »), ce qui coupe la session avant tout texte.
+    - name: "ProCurve — vérifier que la copie TFTP n'a pas échoué"
       ansible.builtin.assert:
         that:
-          - pc_copy.stdout is defined
-          - not (pc_copy.stdout | regex_search('(?i)unable|fail|denied|timed?\s*out|not found|no such|invalid|error|exceeded'))
+          - not (pc_copy.stdout | default('') | regex_search('(?i)unable|denied|timed?\s*out|not found|no such|invalid|transport error|exceeded|cannot'))
         fail_msg: >-
           La copie TFTP a échoué — le switch n'a PAS reçu la config. Sortie :
           « {{ pc_copy.stdout | default('') }} ». Vérifie que le switch atteint
           {{ restore_tftp_server }} (UDP/69) et que « {{ _tftp_path }} » existe.
-        success_msg: "Copie TFTP acceptée par le switch."
+        success_msg: >-
+          Copie TFTP acceptée{% if not (pc_copy.stdout | default('')) %} (sortie vide
+          = le switch a rebooté, succès){% endif %}.
       when:
         - not (restore_dry_run | bool)
         - switch_vendor == 'procurve'
