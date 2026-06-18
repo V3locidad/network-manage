@@ -169,6 +169,36 @@
         - not (restore_dry_run | bool)
         - switch_vendor in ['procurve', 'cisco_ios', 'cisco_nxos']
 
+    # Vérification HONNÊTE (ProCurve) : le switch a-t-il VRAIMENT redémarré ?
+    # cli_command ne capture pas toujours l'erreur de la copie TFTP -> on
+    # contrôle l'uptime. S'il est en jours/heures, le switch n'a pas rebooté,
+    # donc la copie TFTP a échoué et la config n'a PAS été appliquée.
+    - name: "ProCurve — relire l'uptime après restauration"
+      ansible.netcommon.cli_command:
+        command: show system
+      register: pc_postsys
+      failed_when: false
+      when:
+        - not (restore_dry_run | bool)
+        - switch_vendor == 'procurve'
+
+    - name: "ProCurve — confirmer que le switch a bien redémarré"
+      ansible.builtin.assert:
+        that:
+          - pc_postsys.stdout is defined
+          - not (pc_postsys.stdout | regex_search('(?i)Up Time\s*:\s*[0-9,]+\s*(day|week|month|year|hour)'))
+        fail_msg: >-
+          ⚠️ Le switch n'a PAS redémarré (uptime élevé) — la restauration n'a PAS
+          été appliquée. La copie TFTP a probablement échoué (« Transport error »).
+          Teste à la main sur le switch :
+          « copy tftp startup-config {{ restore_tftp_server }} {{ _tftp_path }} »
+          pour voir l'erreur exacte (souvent : le switch n'atteint pas
+          {{ restore_tftp_server }} sur UDP/69, ou droits du fichier).
+        success_msg: "✅ Switch redémarré (uptime bas) — config restaurée appliquée."
+      when:
+        - not (restore_dry_run | bool)
+        - switch_vendor == 'procurve'
+
     - name: "Restauration terminée"
       ansible.builtin.debug:
         msg: "{{ inventory_hostname }} redémarré sur la config restaurée ({{ restore_file }})."
