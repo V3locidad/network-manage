@@ -39,7 +39,7 @@
   ansible.builtin.set_fact:
     ansible_net_version: "{{ (_cx_ver_out | regex_search('(?i)Version\\s*:\\s*(\\S+)', '\\1') | default(['?'], true)) | first }}"
     ansible_net_model: "{{ (_cx_sys_out | regex_search('(?i)Product Name\\s*:\\s*(.+)', '\\1') | default(['?'], true)) | first | trim }}"
-    ansible_net_serialnum: "{{ (_cx_sys_out | regex_search('(?i)Serial Number\\s*:\\s*(\\S+)', '\\1') | default(['?'], true)) | first }}"
+    ansible_net_serialnum: "{{ (_cx_sys_out | regex_search('(?i)(?:Serial Number|Chassis Serial Nbr)\\s*:\\s*(\\S+)', '\\1') | default(['?'], true)) | first }}"
     # MAC de base (format xx:xx:xx:xx:xx:xx dans 'show system').
     ansible_net_basemac: "{{ (_cx_sys_out | regex_search('(?i)Base MAC Add?ress\\s*:\\s*([0-9a-fA-F:.-]+)', '\\1') | default([''], true)) | first }}"
   when: switch_vendor == 'aruba_cx'
@@ -82,6 +82,19 @@
         ansible_net_model: >-
           {{ (_pc_desc | regex_search('2930F|2930M|3810M|2920|2540|2530|2510|2960X|2960S|5400R|6300|6200|6100|8320|8325|8360|6400'))
              | default((_pc_desc | regex_search('J[A-Z0-9]{4,}')) | default('?', true), true) }}
+
+    # Certains modèles (ex. 2620) n'affichent le modèle nulle part dans
+    # 'show system' et ne supportent pas 'show modules'. On le déduit alors du
+    # préfixe de la version logicielle (RA=2620, WC=2930F, KB=3810M…).
+    - name: "ProCurve — repli modèle via la famille logicielle si inconnu"
+      ansible.builtin.set_fact:
+        ansible_net_model: >-
+          {{ {'WC': '2930F', 'WL': '2930M', 'WB': '2920', 'YC': '2540',
+              'YA': '2530', 'YB': '2530', 'RA': '2620', 'KA': '3800',
+              'KB': '3810M'}.get(
+              (ansible_net_version | default('') | regex_search('^([A-Za-z]+)', '\1')
+               | default([''], true) | first | upper), '?') }}
+      when: (ansible_net_model | default('?')) in ['?', '']
 
 # ---- Ligne CSV commune ------------------------------------------------------
 - name: "Construire la ligne de rapport (CSV)"
