@@ -224,7 +224,12 @@ ok "security/firewall.conf écrit"
 # ---------------------------------------------------------------------------
 # 6. Réglages de l'interface (.env) + serveur TFTP
 # ---------------------------------------------------------------------------
-ask "IP de ce serveur sur le réseau des switchs (serveur TFTP firmware)" "$FIRST_IP"; TFTP_IP="$REPLY_VAL"
+# Défaut du TFTP basé sur le réseau des switchs saisi juste avant : on propose
+# l'IP du LXC déjà dans ce subnet, sinon le préfixe à compléter (ex. 192.168.99.).
+SWITCH_PREFIX="$(echo "$SWITCH_NET" | sed -E 's#^([0-9]+\.[0-9]+\.[0-9]+)\..*#\1.#')"
+TFTP_DEFAULT="$(echo "$DETECTED_IPS" | tr ' ' '\n' | grep -E "^${SWITCH_PREFIX//./\\.}[0-9]+$" | head -1)"
+TFTP_DEFAULT="${TFTP_DEFAULT:-$SWITCH_PREFIX}"
+ask "IP de ce serveur sur le réseau des switchs (serveur TFTP firmware)" "$TFTP_DEFAULT"; TFTP_IP="$REPLY_VAL"
 set_kv webui/.env TFTP_SERVER "$TFTP_IP"
 set_kv webui/.env WEBUI_PASSWORD "$(head -c12 /dev/urandom | base64 | tr -d '/+=')"
 grep -q '^WEBUI_SECRET=' webui/.env || set_kv webui/.env WEBUI_SECRET "$(head -c32 /dev/urandom | base64)"
