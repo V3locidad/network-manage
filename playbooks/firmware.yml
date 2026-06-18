@@ -15,25 +15,34 @@
 # ============================================================================
 
 - name: "Mise à jour firmware (un switch à la fois)"
+  # target = un nom de switch OU une liste de switchs (sélection multiple webui).
   hosts: "{{ target | default('none') }}"
   gather_facts: false
-  serial: 1
+  serial: 1                       # un switch à la fois (reboot séquentiel)
   max_fail_percentage: 0
 
   vars:
     target: none
     firmware_check: true
+    # Image par switch (sélection multi, auto par famille) : {host: fichier.swi}.
+    # Si absent, on retombe sur la variable unique firmware_image.
+    firmware_images_map: {}
 
   pre_tasks:
-    - name: "Garde-fou : cible précise (pas un groupe) + paramètres requis"
+    # Image de CE switch : sa propre image dans la map, sinon la valeur unique.
+    - name: "Choisir l'image firmware de ce switch"
+      ansible.builtin.set_fact:
+        firmware_image: "{{ firmware_images_map[inventory_hostname] | default(firmware_image | default('')) }}"
+
+    - name: "Garde-fou : un switch précis + image + serveur TFTP"
       ansible.builtin.assert:
         that:
-          - target not in ['none', 'switches', 'procurve', 'cisco_ios', 'cisco_nxos', 'aruba_cx']
-          - firmware_image | default('') | length > 0
+          - inventory_hostname not in ['switches', 'procurve', 'cisco_ios', 'cisco_nxos', 'aruba_cx']
+          - firmware_image | length > 0
           - firmware_tftp_server | default('') | length > 0
         fail_msg: >-
-          Vise UN switch précis (pas un groupe), et fournis firmware_image +
-          firmware_tftp_server. firmware_check reste à true tant que non testé.
+          Image firmware introuvable pour {{ inventory_hostname }} (firmware_image
+          ou firmware_images_map), ou serveur TFTP manquant.
 
   roles:
     - role: firmware

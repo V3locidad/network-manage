@@ -351,6 +351,14 @@ def _fw_family(version):
     return v.split(".", 1)[0] if "." in v else v
 
 
+def _version_key(version):
+    """Tuple numérique pour comparer 2 versions de la même famille.
+    'WC.16.11.0030' -> (16, 11, 30). Permet de savoir si une image est
+    réellement PLUS récente (jamais proposer un downgrade)."""
+    parts = (version or "").split(".")[1:]  # on retire le préfixe famille
+    return tuple(int(p) if p.isdigit() else 0 for p in parts)
+
+
 def load_switch_hosts():
     """Liste [{name, ip}] des switchs depuis l'inventaire."""
     out = []
@@ -952,13 +960,15 @@ def firmware_dashboard():
     # image WC (2930F) ne concerne pas un KB (3810M), du Cisco, de l'Aruba CX…
     images = []
     targets = {}            # famille -> version de référence (la plus haute)
+    file_by_family = {}     # famille -> fichier .swi de la dernière version
     for path in sorted(glob.glob(os.path.join(FIRMWARE_IMAGES_DIR, "*.swi"))):
         name = os.path.basename(path)
         ver = swi_to_version(name)
         fam = _fw_family(ver)
         images.append({"file": name, "version": ver, "family": fam})
-        if fam and (fam not in targets or ver > targets[fam]):
+        if fam and (fam not in targets or _version_key(ver) > _version_key(targets[fam])):
             targets[fam] = ver
+            file_by_family[fam] = name
 
     # Versions collectées sur les switchs (dernier scan).
     data = []
@@ -979,19 +989,78 @@ def firmware_dashboard():
             if ref is None:
                 status = "noref"
                 n_noref += 1
-            elif cur == ref:
+            elif _version_key(cur) >= _version_key(ref):
+                # À jour (ou déjà plus récent que l'image dispo) -> jamais de downgrade.
                 status = "ok"
                 n_ok += 1
             else:
                 status = "outdated"
                 n_old += 1
+        # Image .swi à utiliser pour ce switch (dernière de sa famille) + s'il
+        # est éligible à une MAJ auto (obsolète + une image existe).
+        image_file = file_by_family.get(_fw_family(cur)) if cur not in ("", "?") else None
         rows.append({"host": d.get("host", "?"), "ip": d.get("ip", ""),
                      "model": d.get("model", "?"),
-                     "version": cur, "status": status, "ref": ref})
+                     "version": cur, "status": status, "ref": ref,
+                     "image_file": image_file,
+                     "can_update": (status == "outdated" and bool(image_file))})
     rows.sort(key=lambda r: r["host"])
     return render_template("firmware.html", rows=rows, images=images,
                            targets=targets, n_ok=n_ok, n_old=n_old,
                            n_noref=n_noref, scanned=bool(data))
+
+
+@app.route("/firmware/update", methods=["POST"])
+@login_required
+def firmware_update():
+    """MAJ firmware AUTO de la sélection : chaque switch reçoit la dernière image
+    de SA famille (WC/KB/FL…), détectée automatiquement. Reboot, un switch à la
+    fois (serial:1 dans le playbook). Coche « simulation » pour un essai à blanc."""
+    selected = request.form.getlist("hosts")
+    dry_run = bool(request.form.get("firmware_check"))
+    # Famille -> dernière image .swi disponible + sa version.
+    file_by_family, fam_ver = {}, {}
+    for path in glob.glob(os.path.join(FIRMWARE_IMAGES_DIR, "*.swi")):
+        name = os.path.basename(path)
+        ver = swi_to_version(name)
+        fam = _fw_family(ver)
+        if fam and (fam not in fam_ver or _version_key(ver) > _version_key(fam_ver[fam])):
+            fam_ver[fam] = ver
+            file_by_family[fam] = name
+    # Version actuelle de chaque switch (dernier scan).
+    cur_by_host = {d.get("host"): (d.get("version") or "").strip()
+                   for d in _read_json(FIRMWARE_STATUS_JSON, [])}
+    # On ne garde que les switchs dont l'image dispo est STRICTEMENT plus récente
+    # (jamais de downgrade, jamais de switch déjà à jour).
+    image_map = {}
+    for host in selected:
+        cur = cur_by_host.get(host, "")
+        fam = _fw_family(cur)
+        img = file_by_family.get(fam)
+        if img and cur not in ("", "?") and _version_key(cur) < _version_key(fam_ver.get(fam, "")):
+            image_map[host] = img
+    if not image_map:
+        flash("Aucun switch à mettre à jour dans la sélection (déjà à jour, ou pas d'image .swi pour leur famille).")
+        return redirect(url_for("firmware_dashboard"))
+
+    run_id = uuid.uuid4().hex
+    RUNS[run_id] = {"q": queue.Queue(), "done": False}
+    extra = {
+        "target": list(image_map.keys()),
+        "firmware_images_map": image_map,
+        "firmware_check": dry_run,
+        "firmware_tftp_server": os.environ.get("TFTP_SERVER", ""),
+    }
+    cmd = ["ansible-playbook", "playbooks/firmware.yml",
+           "-e", f"@{CREDS_FILE}", "-e", json.dumps(extra)]
+    log_history_start(run_id, session.get("who"), client_ip(),
+                      "Mise à jour firmware (auto)", ",".join(image_map),
+                      "%d switch(s)%s" % (len(image_map),
+                                          " — simulation" if dry_run else ""))
+    threading.Thread(target=run_job, args=(run_id, cmd), daemon=True).start()
+    return render_template("run.html", run_id=run_id,
+                           action="Mise à jour firmware (auto)",
+                           back=url_for("firmware_dashboard"), auto_redirect=False)
 
 
 @app.route("/terminal")

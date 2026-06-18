@@ -32,9 +32,12 @@
 </div>
 
 {% if rows %}
+{% set updatables = rows | selectattr('can_update') | list %}
+<form method="post" action="{{ url_for('firmware_update') }}" onsubmit="return confirmFw(this);">
 <table style="width:100%;border-collapse:collapse;font-size:14px;">
   <thead>
     <tr style="text-align:left;color:#94a3b8;border-bottom:1px solid #334155;">
+      <th style="padding:8px;width:28px;"><input type="checkbox" onchange="fwToggleAll(this)" title="Tout sélectionner"></th>
       <th style="padding:8px;">Switch</th>
       <th style="padding:8px;">IP</th>
       <th style="padding:8px;">Modèle</th>
@@ -45,6 +48,9 @@
   <tbody>
     {% for r in rows %}
     <tr style="border-bottom:1px solid #1e293b;">
+      <td style="padding:8px;">
+        {% if r.can_update %}<input type="checkbox" class="fwchk" name="hosts" value="{{ r.host }}">{% endif %}
+      </td>
       <td style="padding:8px;">{{ r.host }}</td>
       <td style="padding:8px;color:#94a3b8;">{{ r.ip }}</td>
       <td style="padding:8px;">{{ r.model }}</td>
@@ -60,6 +66,27 @@
     {% endfor %}
   </tbody>
 </table>
+
+<div class="card" style="margin-top:16px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+  <button type="button" onclick="fwSelectOutdated()" style="width:auto;margin:0;padding:8px 14px;background:#334155;">
+    Sélectionner les {{ updatables|length }} à mettre à jour
+  </button>
+  <label class="check" style="margin:0;"><input type="checkbox" name="firmware_check" checked> Simulation (ne reboote rien)</label>
+  <button type="submit" style="width:auto;margin:0;padding:8px 18px;">⬆️ Mettre à jour la sélection</button>
+  <span class="muted" style="font-size:12px;">L'image est choisie automatiquement (dernière version de la famille de chaque switch). Reboot un par un.</span>
+</div>
+</form>
+
+<script>
+  function fwToggleAll(src){ document.querySelectorAll('.fwchk').forEach(function(c){ c.checked = src.checked; }); }
+  function fwSelectOutdated(){ document.querySelectorAll('.fwchk').forEach(function(c){ c.checked = true; }); }
+  function confirmFw(f){
+    var n = f.querySelectorAll('.fwchk:checked').length;
+    if(!n){ alert('Sélectionne au moins un switch à mettre à jour.'); return false; }
+    if(f.querySelector('[name=firmware_check]').checked) return true;  // simulation
+    return confirm('⚠️ Mettre à jour ' + n + ' switch(s) pour de vrai ?\nChaque switch va REDÉMARRER (coupure ~2-3 min), un par un.');
+  }
+</script>
 {% else %}
 <p style="color:#94a3b8;">Aucune donnée. Clique sur <strong>Rafraîchir l'état</strong>
   pour scanner les switchs (~1-2 min pour le parc).</p>
