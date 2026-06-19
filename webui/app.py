@@ -688,6 +688,12 @@ def _portkey(p):
     return [int(x) if x.isdigit() else x for x in re.split(r"(\d+)", p or "") if x]
 
 
+def _base_name(n):
+    """Nom court sans suffixe de domaine : 'SWI-A-01.A-KASTLER' -> 'SWI-A-01'.
+    Cisco met le domaine dans sysName/CDP, pas Aruba/ProCurve -> on aligne."""
+    return (n or "").split(".")[0].strip()
+
+
 def parse_members(*texts):
     """(dans_un_stack, [{id, role}]) depuis 'show stacking' et/ou 'show vsf'.
 
@@ -797,12 +803,14 @@ def parse_vsf_cx(text):
 def trunks_dashboard():
     data = _read_json("/backups/trunks.json", [])
     hosts = load_switch_hosts()
-    ip2name = {h["ip"]: h["name"] for h in hosts if h.get("ip")}
-    inv_names = {h["name"] for h in hosts}
+    # On compare sur les noms COURTS (sans domaine) car Cisco met le domaine
+    # dans sysName/CDP, pas Aruba/ProCurve.
+    ip2name = {h["ip"]: _base_name(h["name"]) for h in hosts if h.get("ip")}
+    inv_base = {_base_name(h["name"]) for h in hosts}
     rows = []
     for d in data:
         vendor = d.get("vendor", "procurve")
-        host = d.get("host")
+        host = _base_name(d.get("host"))
         neighbors, trunk_names = [], []
         in_stack, members = False, []
 
@@ -810,8 +818,9 @@ def trunks_dashboard():
             trunks = parse_etherchannel(d.get("trunks", ""))
             port2trk = {p: t["name"] for t in trunks for p in t["ports"]}
             for port, c in parse_cdp_cisco(d.get("cdp", "")).items():
-                if c["name"] in inv_names and c["name"] != host:
-                    neighbors.append({"port": port, "name": c["name"],
+                nm = _base_name(c["name"])
+                if nm in inv_base and nm != host:
+                    neighbors.append({"port": port, "name": nm,
                                       "rport": c.get("rport", ""),
                                       "trk": port2trk.get(port, "")})
             trunk_names = [t["name"] for t in trunks]
@@ -821,8 +830,9 @@ def trunks_dashboard():
             trunks = parse_lag_cx(d.get("trunks", ""))
             port2trk = {p: t["name"] for t in trunks for p in t["ports"]}
             for port, c in parse_lldp_cx(d.get("lldp_raw", "")).items():
-                if c["name"] in inv_names and c["name"] != host:
-                    neighbors.append({"port": port, "name": c["name"],
+                nm = _base_name(c["name"])
+                if nm in inv_base and nm != host:
+                    neighbors.append({"port": port, "name": nm,
                                       "rport": c.get("rport", ""),
                                       "trk": port2trk.get(port, "")})
             trunk_names = [t["name"] for t in trunks]
@@ -833,14 +843,14 @@ def trunks_dashboard():
             lmap = {}
             for e in d.get("lldp", []):
                 nm, rp = parse_lldp_detail(e.get("out", ""))
-                lmap[str(e.get("port"))] = {"neighbor": nm, "rport": rp}
+                lmap[str(e.get("port"))] = {"neighbor": _base_name(nm), "rport": rp}
             trunks = parse_trunks(d.get("trunks", ""))
             port2trk = {p: t["name"] for t in trunks for p in t["ports"]}
             for port, c in cdp.items():
                 name = ip2name.get(c.get("ip", ""), "")
-                if not name and lmap.get(port, {}).get("neighbor", "") in inv_names:
+                if not name and lmap.get(port, {}).get("neighbor", "") in inv_base:
                     name = lmap[port]["neighbor"]
-                if name not in inv_names or name == host:
+                if name not in inv_base or name == host:
                     continue
                 rport = c.get("rport", "") or lmap.get(port, {}).get("rport", "")
                 if _looks_like_mac(rport):
