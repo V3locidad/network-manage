@@ -38,6 +38,16 @@ def api_get(base, token, path):
         return json.load(resp)
 
 
+def strip_domain(name):
+    """Retire le suffixe de domaine d'un FQDN ('SWI-X.A-KASTLER' -> 'SWI-X').
+    Cisco met le domaine dans son sysName, pas Aruba/ProCurve. On préserve les
+    adresses IP (a.b.c.d) utilisées en repli."""
+    parts = (name or "").split(".")
+    if len(parts) == 4 and all(p.isdigit() for p in parts):
+        return name          # c'est une IP -> on ne tronque pas
+    return parts[0] if parts else name
+
+
 def sanitize(name):
     """Nom d'hôte Ansible : lettres/chiffres/_/-/. uniquement."""
     out = "".join(c if (c.isalnum() or c in "-_.") else "-" for c in name)
@@ -66,8 +76,9 @@ def main():
         if only_up and d.get("status") == 0:
             continue
         ip = d.get("ip") or d.get("hostname") or ""
-        # Nom lisible : sysName si dispo, sinon hostname. Mis en MAJUSCULES.
-        name = sanitize(d.get("sysName") or d.get("hostname") or ip).upper()
+        # Nom lisible : sysName si dispo, sinon hostname. Domaine retiré (Cisco),
+        # mis en MAJUSCULES.
+        name = sanitize(strip_domain(d.get("sysName") or d.get("hostname") or ip)).upper()
         if not ip:
             skipped.append("%s (pas d'IP)" % name)
             continue
