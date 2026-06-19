@@ -708,6 +708,90 @@ def parse_members(*texts):
     return (len(members) > 0), members
 
 
+def _cisco_short_port(p):
+    """GigabitEthernet1/0/24 -> Gi1/0/24 (plus lisible)."""
+    return (p.replace("TenGigabitEthernet", "Te").replace("GigabitEthernet", "Gi")
+             .replace("FastEthernet", "Fa").replace("Port-channel", "Po").strip())
+
+
+def parse_cdp_cisco(text):
+    """{port_local: {name, ip, rport}} depuis Cisco 'show cdp neighbors detail'."""
+    out = {}
+    for blk in re.split(r"(?m)^-{5,}\s*$", text or ""):
+        did = re.search(r"(?im)^\s*Device ID\s*:\s*(\S+)", blk)
+        loc = re.search(r"(?im)^\s*Interface\s*:\s*([^,]+),", blk)
+        if not did or not loc:
+            continue
+        name = did.group(1).split(".")[0]      # retire le suffixe de domaine
+        ip = re.search(r"(?im)^\s*IP address\s*:\s*(\d{1,3}(?:\.\d{1,3}){3})", blk)
+        rport = re.search(r"(?i)Port ID \(outgoing port\)\s*:\s*(\S+)", blk)
+        out[_cisco_short_port(loc.group(1))] = {
+            "name": name,
+            "ip": (ip.group(1) if ip else ""),
+            "rport": _cisco_short_port(rport.group(1)) if rport else ""}
+    return out
+
+
+def parse_etherchannel(text):
+    """[{name, ports}] depuis Cisco 'show etherchannel summary'."""
+    groups = []
+    for m in re.finditer(r"(?m)^\s*\d+\s+(Po\d+)\S*\s+\S+\s+(.+)$", text or ""):
+        ports = re.findall(r"([A-Za-z]+\d[\w/]*)\(", m.group(2))
+        groups.append({"name": m.group(1), "ports": [_cisco_short_port(p) for p in ports]})
+    return groups
+
+
+def parse_lldp_cx(text):
+    """{port_local: {name, rport}} depuis AOS-CX 'show lldp neighbor-info'
+    (table à colonnes fixes). On ne garde que les voisins ayant un SYS-NAME."""
+    lines = (text or "").splitlines()
+    hdr_i = next((i for i, l in enumerate(lines)
+                  if "LOCAL-PORT" in l and "SYS-NAME" in l), None)
+    if hdr_i is None:
+        return {}
+    hdr = lines[hdr_i]
+    cols = ["LOCAL-PORT", "CHASSIS-ID", "PORT-ID", "PORT-DESC", "TTL", "SYS-NAME"]
+    pos = [hdr.index(c) for c in cols]
+    out = {}
+    for l in lines[hdr_i + 1:]:
+        if not l.strip() or set(l.strip()) <= set("-"):
+            continue
+
+        def col(i):
+            start = pos[i]
+            end = pos[i + 1] if i + 1 < len(pos) else len(l)
+            return l[start:end].strip() if start < len(l) else ""
+        lp = col(0)
+        if not re.match(r"\d+/\d+/\d+", lp):
+            continue
+        sysname = col(5)
+        if not sysname:                         # AP / téléphone sans nom -> ignoré
+            continue
+        out[lp] = {"name": sysname, "rport": col(3) or col(2)}
+    return out
+
+
+def parse_lag_cx(text):
+    """[{name, ports}] depuis AOS-CX 'show lag'."""
+    groups = []
+    for m in re.finditer(
+            r"(?ms)^Aggregate (lag\d+).*?Aggregated-interfaces\s*:\s*([0-9/ ]+)",
+            text or ""):
+        groups.append({"name": m.group(1), "ports": m.group(2).split()})
+    return groups
+
+
+def parse_vsf_cx(text):
+    """(dans_un_stack, [{id, role}]) depuis AOS-CX 'show vsf' (MAC en xx:xx:..)."""
+    members = []
+    for m in re.finditer(
+            r"(?m)^\s*(\d+)\s+(?:[0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}\s+\S+\s+(\S+)",
+            text or ""):
+        members.append({"id": m.group(1), "role": m.group(2)})
+    members.sort(key=lambda x: int(x["id"]))
+    return (len(members) >= 2), members
+
+
 @app.route("/trunks")
 @login_required
 def trunks_dashboard():
@@ -717,41 +801,58 @@ def trunks_dashboard():
     inv_names = {h["name"] for h in hosts}
     rows = []
     for d in data:
-        in_stack, members = parse_members(d.get("stacking", ""), d.get("vsf", ""))
-        cdp = parse_cdp(d.get("cdp", ""))
-        # Repli LLDP par port local.
-        lmap = {}
-        for e in d.get("lldp", []):
-            nm, rp = parse_lldp_detail(e.get("out", ""))
-            lmap[str(e.get("port"))] = {"neighbor": nm, "rport": rp}
-        # Quel port appartient à quel trunk ?
-        trunks = parse_trunks(d.get("trunks", ""))
-        port2trk = {}
-        for t in trunks:
-            for p in t["ports"]:
-                port2trk[p] = t["name"]
+        vendor = d.get("vendor", "procurve")
+        host = d.get("host")
+        neighbors, trunk_names = [], []
+        in_stack, members = False, []
 
-        # Uniquement les voisins qui sont des switchs DE L'INVENTAIRE.
-        neighbors = []
-        for port, c in cdp.items():
-            # Résolution du nom : IP CDP, sinon SysName LLDP (ports de trunk).
-            name = ip2name.get(c.get("ip", ""), "")
-            if not name and lmap.get(port, {}).get("neighbor", "") in inv_names:
-                name = lmap[port]["neighbor"]
-            # On ne garde que les switchs connus, et pas les liens internes (stack).
-            if name not in inv_names or name == d.get("host"):
-                continue
-            rport = c.get("rport", "") or lmap.get(port, {}).get("rport", "")
-            if _looks_like_mac(rport):
-                rport = ""
-            neighbors.append({"port": port, "name": name, "rport": rport,
-                              "trk": port2trk.get(port, "")})
+        if vendor == "cisco_ios":
+            trunks = parse_etherchannel(d.get("trunks", ""))
+            port2trk = {p: t["name"] for t in trunks for p in t["ports"]}
+            for port, c in parse_cdp_cisco(d.get("cdp", "")).items():
+                if c["name"] in inv_names and c["name"] != host:
+                    neighbors.append({"port": port, "name": c["name"],
+                                      "rport": c.get("rport", ""),
+                                      "trk": port2trk.get(port, "")})
+            trunk_names = [t["name"] for t in trunks]
+
+        elif vendor == "aruba_cx":
+            in_stack, members = parse_vsf_cx(d.get("vsf", ""))
+            trunks = parse_lag_cx(d.get("trunks", ""))
+            port2trk = {p: t["name"] for t in trunks for p in t["ports"]}
+            for port, c in parse_lldp_cx(d.get("lldp_raw", "")).items():
+                if c["name"] in inv_names and c["name"] != host:
+                    neighbors.append({"port": port, "name": c["name"],
+                                      "rport": c.get("rport", ""),
+                                      "trk": port2trk.get(port, "")})
+            trunk_names = [t["name"] for t in trunks]
+
+        else:  # procurve / AOS-Switch
+            in_stack, members = parse_members(d.get("stacking", ""), d.get("vsf", ""))
+            cdp = parse_cdp(d.get("cdp", ""))
+            lmap = {}
+            for e in d.get("lldp", []):
+                nm, rp = parse_lldp_detail(e.get("out", ""))
+                lmap[str(e.get("port"))] = {"neighbor": nm, "rport": rp}
+            trunks = parse_trunks(d.get("trunks", ""))
+            port2trk = {p: t["name"] for t in trunks for p in t["ports"]}
+            for port, c in cdp.items():
+                name = ip2name.get(c.get("ip", ""), "")
+                if not name and lmap.get(port, {}).get("neighbor", "") in inv_names:
+                    name = lmap[port]["neighbor"]
+                if name not in inv_names or name == host:
+                    continue
+                rport = c.get("rport", "") or lmap.get(port, {}).get("rport", "")
+                if _looks_like_mac(rport):
+                    rport = ""
+                neighbors.append({"port": port, "name": name, "rport": rport,
+                                  "trk": port2trk.get(port, "")})
+            trunk_names = [t["name"] for t in trunks]
+
         neighbors.sort(key=lambda n: _portkey(n["port"]))
-
-        rows.append({"host": d.get("host", "?"), "ip": d.get("ip", ""),
-                     "in_stack": in_stack, "members": members,
-                     "neighbors": neighbors,
-                     "trunks": [t["name"] for t in trunks]})
+        rows.append({"host": host or "?", "ip": d.get("ip", ""),
+                     "vendor": vendor, "in_stack": in_stack, "members": members,
+                     "neighbors": neighbors, "trunks": trunk_names})
     rows.sort(key=lambda r: r["host"])
     return render_template("trunks.html", rows=rows, scanned=bool(data))
 
