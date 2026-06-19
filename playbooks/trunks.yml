@@ -1,86 +1,130 @@
 ---
 # ============================================================================
-# Collecte l'état « stack » (VSF) et « trunks » (agrégation de liens) de chaque
-# switch. Sortie brute par switch dans {{ backup_dir }}/trunks.json, analysée
-# par l'interface (page « Trunks »). Lecture seule, sans risque.
+# Collecte l'état « stack » et « trunks/agrégation » de chaque switch, MULTI-
+# VENDOR (ProCurve / Cisco IOS / Aruba CX). Sortie brute par switch dans
+# {{ backup_dir }}/trunks.json, analysée par l'interface (page « Trunks »).
+# Lecture seule, sans risque. Les commandes inconnues d'un modèle sont ignorées
+# (failed_when:false) -> pas de crash sur parc mixte.
 # ============================================================================
 
 - name: "Collecte stacking + trunks"
-  hosts: "{{ target | default('procurve') }}"
+  hosts: "{{ target | default('switches') }}"
   gather_facts: false
 
   vars:
-    target: procurve
+    target: switches
 
   tasks:
-    # Stacking selon la famille : 3810M/5400 = « show stacking », 2930 = « show vsf ».
-    - name: "Lire l'état du stack (backplane stacking)"
-      ansible.netcommon.cli_command:
-        command: show stacking
-      register: tk_stack
-      failed_when: false
-      changed_when: false
+    # ===================== ProCurve / AOS-Switch =========================
+    - name: "ProCurve — collecte stack/trunks/voisins"
+      when: switch_vendor == 'procurve'
+      block:
+        - name: "ProCurve — show stacking / vsf / trunks / cdp"
+          ansible.netcommon.cli_command:
+            command: "{{ item }}"
+          loop:
+            - show stacking
+            - show vsf
+            - show trunks
+            - show cdp neighbors detail
+          register: pc_tk
+          failed_when: false
+          changed_when: false
 
-    - name: "Lire l'état VSF (familles 2920/2930)"
-      ansible.netcommon.cli_command:
-        command: show vsf
-      register: tk_vsf
-      failed_when: false
-      changed_when: false
+        - name: "ProCurve — ports membres des trunks"
+          ansible.builtin.set_fact:
+            tk_trunk_ports: >-
+              {{ pc_tk.results[2].stdout | default('')
+                 | regex_findall('(?m)^\s*(\d[0-9A-Za-z/]*)\s*\|.*Trk\d+') }}
 
-    - name: "Lire les trunks (agrégation de liens)"
-      ansible.netcommon.cli_command:
-        command: show trunks
-      register: tk_trunk
-      failed_when: false
-      changed_when: false
+        - name: "ProCurve — LLDP détaillé des ports de trunk"
+          ansible.netcommon.cli_command:
+            command: "show lldp info remote-device {{ item }}"
+          loop: "{{ tk_trunk_ports | default([]) }}"
+          register: pc_lldp
+          failed_when: false
+          changed_when: false
+          when: (tk_trunk_ports | default([])) | length > 0
 
-    - name: "Voisins CDP (détail : IP + port en face en une commande)"
-      ansible.netcommon.cli_command:
-        command: show cdp neighbors detail
-      register: tk_cdp
-      failed_when: false
-      changed_when: false
+        - name: "ProCurve — liste port -> détail LLDP"
+          ansible.builtin.set_fact:
+            tk_lldp_list: "{{ tk_lldp_list | default([]) + [ {'port': item.item, 'out': item.stdout | default('')} ] }}"
+          loop: "{{ pc_lldp.results | default([]) }}"
+          loop_control:
+            label: "{{ item.item | default('') }}"
+          when: pc_lldp.results is defined
 
-    - name: "Ports membres des trunks"
-      ansible.builtin.set_fact:
-        tk_trunk_ports: >-
-          {{ tk_trunk.stdout | default('')
-             | regex_findall('(?m)^\s*(\d[0-9A-Za-z/]*)\s*\|.*Trk\d+') }}
+        - name: "ProCurve — champs unifiés"
+          ansible.builtin.set_fact:
+            tk_stacking: "{{ pc_tk.results[0].stdout | default('') }}"
+            tk_vsf: "{{ pc_tk.results[1].stdout | default('') }}"
+            tk_trunks: "{{ pc_tk.results[2].stdout | default('') }}"
+            tk_cdp: "{{ pc_tk.results[3].stdout | default('') }}"
+            tk_lldp_raw: ""
 
-    - name: "Détail LLDP de chaque port de trunk (voisin en face)"
-      ansible.netcommon.cli_command:
-        command: "show lldp info remote-device {{ item }}"
-      loop: "{{ tk_trunk_ports | default([]) }}"
-      register: tk_lldp
-      failed_when: false
-      changed_when: false
-      when: (tk_trunk_ports | default([])) | length > 0
+    # ===================== Cisco IOS =====================================
+    - name: "Cisco — collecte stack/etherchannel/voisins"
+      when: switch_vendor == 'cisco_ios'
+      block:
+        - name: "Cisco — show switch / etherchannel / cdp / lldp"
+          ansible.netcommon.cli_command:
+            command: "{{ item }}"
+          loop:
+            - show switch
+            - show etherchannel summary
+            - show cdp neighbors detail
+            - show lldp neighbors detail
+          register: ci_tk
+          failed_when: false
+          changed_when: false
 
-    - name: "Initialiser la liste LLDP"
-      ansible.builtin.set_fact:
-        tk_lldp_list: []
+        - name: "Cisco — champs unifiés"
+          ansible.builtin.set_fact:
+            tk_stacking: "{{ ci_tk.results[0].stdout | default('') }}"
+            tk_vsf: ""
+            tk_trunks: "{{ ci_tk.results[1].stdout | default('') }}"
+            tk_cdp: "{{ ci_tk.results[2].stdout | default('') }}"
+            tk_lldp_raw: "{{ ci_tk.results[3].stdout | default('') }}"
+            tk_lldp_list: []
 
-    - name: "Construire la liste port -> détail LLDP"
-      ansible.builtin.set_fact:
-        tk_lldp_list: >-
-          {{ tk_lldp_list
-             + [ {'port': item.item, 'out': item.stdout | default('')} ] }}
-      loop: "{{ tk_lldp.results | default([]) }}"
-      loop_control:
-        label: "{{ item.item | default('') }}"
-      when: tk_lldp.results is defined
+    # ===================== Aruba CX ======================================
+    - name: "Aruba CX — collecte vsf/lag/voisins"
+      when: switch_vendor == 'aruba_cx'
+      block:
+        - name: "Aruba CX — show vsf / lag / lldp neighbor-info"
+          ansible.netcommon.cli_command:
+            command: "{{ item }}"
+          loop:
+            - show vsf
+            - show lag
+            - show lldp neighbor-info
+          register: cx_tk
+          failed_when: false
+          changed_when: false
 
+        - name: "Aruba CX — champs unifiés"
+          ansible.builtin.set_fact:
+            tk_stacking: ""
+            tk_vsf: "{{ cx_tk.results[0].stdout | default('') }}"
+            tk_trunks: "{{ cx_tk.results[1].stdout | default('') }}"
+            tk_cdp: ""
+            tk_lldp_raw: "{{ cx_tk.results[2].stdout | default('') }}"
+            tk_lldp_list: []
+
+    # ===================== Enregistrement unifié =========================
     - name: "Mémoriser la sortie brute"
       ansible.builtin.set_fact:
         host_trunk_info:
           host: "{{ inventory_hostname }}"
           ip: "{{ ansible_host | default('') }}"
-          stacking: "{{ tk_stack.stdout | default('') }}"
-          vsf: "{{ tk_vsf.stdout | default('') }}"
-          trunks: "{{ tk_trunk.stdout | default('') }}"
-          cdp: "{{ tk_cdp.stdout | default('') }}"
+          vendor: "{{ switch_vendor | default('') }}"
+          stacking: "{{ tk_stacking | default('') }}"
+          vsf: "{{ tk_vsf | default('') }}"
+          trunks: "{{ tk_trunks | default('') }}"
+          cdp: "{{ tk_cdp | default('') }}"
+          lldp_raw: "{{ tk_lldp_raw | default('') }}"
           lldp: "{{ tk_lldp_list | default([]) }}"
+      when: tk_stacking is defined or tk_vsf is defined or tk_trunks is defined
 
 - name: "Consolidation du résultat"
   hosts: localhost
@@ -90,9 +134,7 @@
   tasks:
     - name: "Rassembler par switch"
       ansible.builtin.set_fact:
-        trunk_report: >-
-          {{ trunk_report | default([])
-             + [ hostvars[item].host_trunk_info ] }}
+        trunk_report: "{{ trunk_report | default([]) + [ hostvars[item].host_trunk_info ] }}"
       loop: "{{ groups['switches'] }}"
       when: hostvars[item].host_trunk_info is defined
 
