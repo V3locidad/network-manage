@@ -37,7 +37,7 @@
     - name: "Garde-fou : un switch précis + image + serveur TFTP"
       ansible.builtin.assert:
         that:
-          - inventory_hostname not in ['switches', 'procurve', 'cisco_ios', 'cisco_nxos', 'aruba_cx']
+          - inventory_hostname not in ['switchs', 'procurve', 'cisco_ios', 'cisco_nxos', 'aruba_cx']
           - firmware_image | length > 0
           - firmware_tftp_server | default('') | length > 0
         fail_msg: >-

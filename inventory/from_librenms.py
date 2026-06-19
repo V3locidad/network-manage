@@ -99,7 +99,7 @@ def main():
             total += len(hosts)
         else:
             lines.append("      hosts: {}")
-    lines += ["    switches:", "      children:"]
+    lines += ["    switchs:", "      children:"]
     lines += ["        %s:" % g for g in GROUPS]
     lines.append("")
 

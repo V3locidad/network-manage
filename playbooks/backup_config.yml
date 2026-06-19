@@ -7,11 +7,11 @@
 # ============================================================================
 
 - name: "Sauvegarde des configurations"
-  hosts: "{{ target | default('switches') }}"
+  hosts: "{{ target | default('switchs') }}"
   gather_facts: false
 
   vars:
-    target: switches
+    target: switchs
 
   roles:
     - role: backup

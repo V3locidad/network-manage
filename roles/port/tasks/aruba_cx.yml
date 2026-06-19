@@ -24,13 +24,13 @@
   ansible.builtin.fail:
     msg: >-
       ⛔ Le port {{ port_id }} de {{ inventory_hostname }} est une ROCADE
-      (voisin « {{ (groups['switches'] | select('in', cx_port_line) | list | first) | default('switch inventaire') }} »,
+      (voisin « {{ (groups['switchs'] | select('in', cx_port_line) | list | first) | default('switch inventaire') }} »,
       ou listé en uplink_ports). Désactivation refusée pour ne pas couper le réseau.
   when:
     - port_state == 'disable'
     - >-
       ((port_id | string) in (uplink_ports | default([]) | map('string') | list))
-      or ((groups['switches'] | select('in', cx_port_line) | list | length) > 0)
+      or ((groups['switchs'] | select('in', cx_port_line) | list | length) > 0)
 
 - name: "Aruba CX — {{ 'désactiver' if port_state == 'disable' else 'activer' }} le port {{ port_id }}"
   ansible.netcommon.cli_command:
@@ -56,7 +56,7 @@
     msg: >-
       [DRY-RUN] {{ inventory_hostname }} (Aruba CX) : interface {{ port_id }}
       serait « {{ port_state }} »
-      {{ ('— ROCADE détectée (voisin ' ~ (groups['switches'] | select('in', cx_port_line) | list | first) ~ ')')
-         if (groups['switches'] | select('in', cx_port_line) | list | length) > 0 else '' }}.
+      {{ ('— ROCADE détectée (voisin ' ~ (groups['switchs'] | select('in', cx_port_line) | list | first) ~ ')')
+         if (groups['switchs'] | select('in', cx_port_line) | list | length) > 0 else '' }}.
       Rien n'a été écrit.
   when: port_dry_run | bool

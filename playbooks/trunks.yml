@@ -8,11 +8,11 @@
 # ============================================================================
 
 - name: "Collecte stacking + trunks"
-  hosts: "{{ target | default('switches') }}"
+  hosts: "{{ target | default('switchs') }}"
   gather_facts: false
 
   vars:
-    target: switches
+    target: switchs
 
   tasks:
     # ===================== ProCurve / AOS-Switch =========================
@@ -135,7 +135,7 @@
     - name: "Rassembler par switch"
       ansible.builtin.set_fact:
         trunk_report: "{{ trunk_report | default([]) + [ hostvars[item].host_trunk_info ] }}"
-      loop: "{{ groups['switches'] }}"
+      loop: "{{ groups['switchs'] }}"
       when: hostvars[item].host_trunk_info is defined
 
     - name: "Écrire le JSON"

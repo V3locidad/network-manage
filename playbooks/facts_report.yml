@@ -7,11 +7,11 @@
 # ============================================================================
 
 - name: "Collecte des facts du parc"
-  hosts: "{{ target | default('switches') }}"
+  hosts: "{{ target | default('switchs') }}"
   gather_facts: false
 
   vars:
-    target: switches
+    target: switchs
 
   roles:
     - role: facts_report
@@ -33,7 +33,7 @@
       ansible.builtin.lineinfile:
         path: "{{ report_path }}"
         line: "{{ hostvars[item].fact_line | trim }}"
-      loop: "{{ groups['switches'] }}"
+      loop: "{{ groups['switchs'] }}"
       when: hostvars[item].fact_line is defined
 
     - name: "Rapport généré"

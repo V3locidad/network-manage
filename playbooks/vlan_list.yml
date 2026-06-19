@@ -6,10 +6,10 @@
 # ============================================================================
 
 - name: "Collecte des VLANs"
-  hosts: "{{ target | default('switches') }}"
+  hosts: "{{ target | default('switchs') }}"
   gather_facts: false
   vars:
-    target: switches
+    target: switchs
   tasks:
     - name: "Commande VLAN selon le constructeur"
       ansible.builtin.set_fact:
@@ -42,7 +42,7 @@
     - name: "Construire la table id -> nom (fusion de tous les switchs)"
       ansible.builtin.set_fact:
         vlan_map: "{{ vlan_map | default({}) | combine({ item.0: (item.1 | trim) }) }}"
-      loop: "{{ groups['switches']
+      loop: "{{ groups['switchs']
                 | map('extract', hostvars, 'host_vlans')
                 | select('defined') | list | flatten(levels=1) }}"
 

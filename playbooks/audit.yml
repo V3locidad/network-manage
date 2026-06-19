@@ -6,10 +6,10 @@
 # ============================================================================
 
 - name: "Audit de conformité"
-  hosts: "{{ target | default('switches') }}"
+  hosts: "{{ target | default('switchs') }}"
   gather_facts: false
   vars:
-    target: switches
+    target: switchs
   roles:
     - role: audit
 
@@ -22,7 +22,7 @@
     - name: "Rassembler les résultats"
       ansible.builtin.set_fact:
         audit_list: "{{ audit_list | default([]) + [hostvars[item].audit_result] }}"
-      loop: "{{ groups['switches'] }}"
+      loop: "{{ groups['switchs'] }}"
       when: hostvars[item].audit_result is defined
 
     - name: "Écrire le JSON"

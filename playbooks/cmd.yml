@@ -49,7 +49,7 @@
         cmd_report: >-
           {{ cmd_report | default([])
              + [ { 'host': item, 'results': hostvars[item].host_cmd_results | default([]) } ] }}
-      loop: "{{ groups['switches'] }}"
+      loop: "{{ groups['switchs'] }}"
       when: hostvars[item].host_cmd_results is defined
 
     - name: "Écrire le JSON"

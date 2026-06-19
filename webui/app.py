@@ -436,7 +436,7 @@ def load_targets():
             inv = yaml.safe_load(fh)
         for gname, grp in inv["all"]["children"].items():
             hs = list((grp.get("hosts") or {}).keys())
-            if hs:                       # 'switches' est un méta-groupe (children) -> ignoré
+            if hs:                       # 'switchs' est un méta-groupe (children) -> ignoré
                 groups[gname] = hs
                 for h in hs:
                     if h not in all_hosts:
@@ -444,7 +444,7 @@ def load_targets():
     except Exception:
         pass
     # 1) Tout le parc, 2) chaque constructeur présent, 3) chaque switch.
-    targets = [("switches", f"Tous les switchs ({len(all_hosts)})")]
+    targets = [("switchs", f"Tous les switchs ({len(all_hosts)})")]
     for g, hs in groups.items():
         targets.append((g, f"{GROUP_LABELS.get(g, g)} ({len(hs)})"))
     targets += [(h, h) for h in sorted(all_hosts)]

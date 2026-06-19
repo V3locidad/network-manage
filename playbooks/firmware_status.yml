@@ -6,10 +6,10 @@
 # ============================================================================
 
 - name: "Collecte des versions firmware"
-  hosts: "{{ target | default('switches') }}"
+  hosts: "{{ target | default('switchs') }}"
   gather_facts: false
   vars:
-    target: switches
+    target: switchs
   roles:
     - role: facts_report
 
@@ -33,7 +33,7 @@
           model: >-
             {{ hostvars[item].ansible_net_model
                | default(hostvars[item].ansible_net_stacked_models[0] | default('?')) }}
-      loop: "{{ groups['switches'] }}"
+      loop: "{{ groups['switchs'] }}"
       when: hostvars[item].ansible_net_version is defined
 
     - name: "Écrire le fichier JSON"

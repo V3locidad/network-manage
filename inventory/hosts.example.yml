@@ -32,7 +32,7 @@ all:
         sw-acces-02: { ansible_host: 10.0.0.2 }
 
     # ---- Méta-groupe : tout le parc ----------------------------------------
-    switches:
+    switchs:
       children:
         cisco_ios:
         cisco_nxos:
